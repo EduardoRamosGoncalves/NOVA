@@ -29,6 +29,14 @@ const taskList = $("taskList");
 const taskSummary = $("taskSummary");
 const taskEmpty = $("taskEmpty");
 
+const noteForm = $("noteForm");
+const noteTitle = $("noteTitle");
+const noteContent = $("noteContent");
+const noteSearch = $("noteSearch");
+const noteList = $("noteList");
+const noteSummary = $("notesSummary");
+const noteEmpty = $("noteEmpty");
+
 let engine = null;
 let loading = false;
 let currentFilter = "all";
@@ -45,9 +53,10 @@ function readStorage(key, fallback) {
 let memories = readStorage(KEYS.memories, []);
 let conversation = readStorage(KEYS.conversation, []);
 let displayHistory = readStorage(KEYS.display, []);
-let notes = readStorage(KEYS.notes, []);
+let rawNotes = readStorage(KEYS.notes, []);
+let rawTasks = readStorage(KEYS.tasks, []);
 
-/* Repair and standardize old task data. */
+/* ---------- DATA NORMALIZATION ---------- */
 
 function makeTask(item, index) {
   if (typeof item === "string") {
@@ -61,12 +70,9 @@ function makeTask(item, index) {
     };
   }
 
-  if (!item || typeof item !== "object") {
-    return null;
-  }
+  if (!item || typeof item !== "object") return null;
 
   const text = String(item.text ?? item.title ?? "").trim();
-
   if (!text) return null;
 
   return {
@@ -74,16 +80,37 @@ function makeTask(item, index) {
     text,
     done: item.done === true,
     priority: ["low", "normal", "high"].includes(item.priority)
-      ? item.priority
-      : "normal",
+      ? item.priority : "normal",
     dueDate: typeof item.dueDate === "string" ? item.dueDate : "",
     createdAt: Number(item.createdAt) || Date.now()
   };
 }
 
-let tasks = readStorage(KEYS.tasks, [])
-  .map(makeTask)
-  .filter(Boolean);
+function normalizeNote(item, index) {
+  if (typeof item === "string") {
+    return {
+      id: `note-${Date.now()}-${index}`,
+      title: "Untitled note",
+      content: item,
+      createdAt: Date.now()
+    };
+  }
+
+  if (!item || typeof item !== "object") return null;
+
+  const content = String(item.content ?? item.text ?? "").trim();
+  if (!content) return null;
+
+  return {
+    id: String(item.id || `note-${Date.now()}-${index}`),
+    title: String(item.title || "Untitled note"),
+    content,
+    createdAt: Number(item.createdAt) || Date.now()
+  };
+}
+
+let tasks = rawTasks.map(makeTask).filter(Boolean);
+let notes = rawNotes.map(normalizeNote).filter(Boolean);
 
 function saveState() {
   try {
@@ -97,6 +124,8 @@ function saveState() {
     setStatus("LOCAL STORAGE ERROR");
   }
 }
+
+/* ---------- GENERAL ---------- */
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -140,25 +169,21 @@ function restoreConversation() {
   chatMessages.innerHTML = "";
 
   if (!displayHistory.length) {
-    renderMessage(
-      "assistant",
-      "Welcome back. Your local tools and saved data are ready."
-    );
+    renderMessage("assistant",
+      "Welcome back. Your local tools and saved data are ready.");
     return;
   }
 
   for (const message of displayHistory) {
-    if (
-      message &&
+    if (message &&
       ["user", "assistant"].includes(message.sender) &&
-      typeof message.text === "string"
-    ) {
+      typeof message.text === "string") {
       renderMessage(message.sender, message.text);
     }
   }
 }
 
-/* ---------- VISUAL TASK MANAGER ---------- */
+/* ---------- TASK MANAGER ---------- */
 
 function updateTaskSummary() {
   const completed = tasks.filter(task => task.done).length;
@@ -172,7 +197,6 @@ function formatDueDate(date) {
   if (!date) return "";
 
   const parsed = new Date(`${date}T00:00:00`);
-
   if (Number.isNaN(parsed.getTime())) return "";
 
   return parsed.toLocaleDateString(undefined, {
@@ -184,7 +208,6 @@ function formatDueDate(date) {
 
 function renderTasks() {
   taskList.innerHTML = "";
-
   updateTaskSummary();
 
   const visibleTasks = tasks.filter(task => {
@@ -209,10 +232,8 @@ function renderTasks() {
     check.type = "button";
     check.className = "task-check";
     check.textContent = task.done ? "✓" : "";
-    check.setAttribute(
-      "aria-label",
-      task.done ? "Mark task as open" : "Complete task"
-    );
+    check.setAttribute("aria-label",
+      task.done ? "Mark task as open" : "Complete task");
 
     check.addEventListener("click", () => {
       task.done = !task.done;
@@ -266,7 +287,6 @@ function renderTasks() {
 
 function addTask(text, priority = "normal", dueDate = "") {
   const cleanText = text.trim();
-
   if (!cleanText) return false;
 
   tasks.push({
@@ -280,7 +300,6 @@ function addTask(text, priority = "normal", dueDate = "") {
 
   saveState();
   renderTasks();
-
   return true;
 }
 
@@ -289,7 +308,6 @@ function editTask(id) {
   if (!task) return;
 
   const newText = prompt("Edit task:", task.text);
-
   if (newText === null) return;
 
   if (!newText.trim()) {
@@ -300,13 +318,11 @@ function editTask(id) {
   task.text = newText.trim();
 
   const newPriority = prompt(
-    "Priority: low, normal or high",
-    task.priority
+    "Priority: low, normal or high", task.priority
   );
 
   if (newPriority !== null) {
     const value = newPriority.trim().toLowerCase();
-
     if (["low", "normal", "high"].includes(value)) {
       task.priority = value;
     }
@@ -319,8 +335,7 @@ function editTask(id) {
 
   if (newDate !== null) {
     task.dueDate = /^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())
-      ? newDate.trim()
-      : "";
+      ? newDate.trim() : "";
   }
 
   saveState();
@@ -329,12 +344,9 @@ function editTask(id) {
 
 function deleteTask(id) {
   const task = tasks.find(item => item.id === id);
-  if (!task) return;
-
-  if (!confirm(`Delete "${task.text}"?`)) return;
+  if (!task || !confirm(`Delete "${task.text}"?`)) return;
 
   tasks = tasks.filter(item => item.id !== id);
-
   saveState();
   renderTasks();
 }
@@ -342,13 +354,7 @@ function deleteTask(id) {
 taskForm.addEventListener("submit", event => {
   event.preventDefault();
 
-  const added = addTask(
-    taskInput.value,
-    taskPriority.value,
-    taskDueDate.value
-  );
-
-  if (added) {
+  if (addTask(taskInput.value, taskPriority.value, taskDueDate.value)) {
     taskInput.value = "";
     taskDueDate.value = "";
     taskPriority.value = "normal";
@@ -368,6 +374,134 @@ document.querySelectorAll(".task-filter").forEach(button => {
   });
 });
 
+/* ---------- NOTES MANAGER ---------- */
+
+function renderNotes() {
+  noteList.innerHTML = "";
+
+  const search = noteSearch.value.trim().toLowerCase();
+
+  const visibleNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(search) ||
+    note.content.toLowerCase().includes(search)
+  );
+
+  noteSummary.textContent =
+    `${notes.length} saved ${notes.length === 1 ? "note" : "notes"}`;
+
+  noteEmpty.hidden = visibleNotes.length > 0;
+
+  if (!notes.length) {
+    noteEmpty.textContent = "No notes yet. Create your first note above.";
+  } else if (!visibleNotes.length) {
+    noteEmpty.textContent = "No matching notes found.";
+  }
+
+  visibleNotes.forEach(note => {
+    const card = document.createElement("article");
+    card.className = "note-card";
+
+    const heading = document.createElement("div");
+    heading.className = "note-card-heading";
+
+    const title = document.createElement("h3");
+    title.textContent = note.title;
+
+    const date = document.createElement("span");
+    date.className = "note-date";
+    date.textContent = new Date(note.createdAt).toLocaleDateString();
+
+    heading.append(title, date);
+
+    const content = document.createElement("p");
+    content.className = "note-card-content";
+    content.textContent = note.content;
+
+    const actions = document.createElement("div");
+    actions.className = "note-actions";
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "EDIT";
+    edit.addEventListener("click", () => editNote(note.id));
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "DELETE";
+    remove.addEventListener("click", () => deleteNote(note.id));
+
+    actions.append(edit, remove);
+    card.append(heading, content, actions);
+    noteList.appendChild(card);
+  });
+}
+
+function addNote(title, content) {
+  const cleanTitle = title.trim();
+  const cleanContent = content.trim();
+
+  if (!cleanTitle || !cleanContent) return false;
+
+  notes.unshift({
+    id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    title: cleanTitle,
+    content: cleanContent,
+    createdAt: Date.now()
+  });
+
+  saveState();
+  renderNotes();
+  return true;
+}
+
+function editNote(id) {
+  const note = notes.find(item => item.id === id);
+  if (!note) return;
+
+  const newTitle = prompt("Note title:", note.title);
+  if (newTitle === null) return;
+
+  if (!newTitle.trim()) {
+    alert("A note needs a title.");
+    return;
+  }
+
+  const newContent = prompt("Note content:", note.content);
+  if (newContent === null) return;
+
+  if (!newContent.trim()) {
+    alert("A note needs some content.");
+    return;
+  }
+
+  note.title = newTitle.trim();
+  note.content = newContent.trim();
+
+  saveState();
+  renderNotes();
+}
+
+function deleteNote(id) {
+  const note = notes.find(item => item.id === id);
+  if (!note || !confirm(`Delete "${note.title}"?`)) return;
+
+  notes = notes.filter(item => item.id !== id);
+  saveState();
+  renderNotes();
+}
+
+noteForm.addEventListener("submit", event => {
+  event.preventDefault();
+
+  if (addNote(noteTitle.value, noteContent.value)) {
+    noteTitle.value = "";
+    noteContent.value = "";
+    noteTitle.focus();
+  }
+});
+
+noteSearch.addEventListener("input", renderNotes);
+
 /* ---------- AI CONTEXT ---------- */
 
 function getSystemPrompt() {
@@ -380,7 +514,9 @@ Saved memories:
 ${memories.map(item => "- " + item).join("\n") || "No saved memories."}
 
 Saved notes:
-${notes.map((item, i) => `${i + 1}. ${item}`).join("\n") || "No notes."}
+${notes.map((item, i) =>
+  `${i + 1}. ${item.title}: ${item.content}`
+).join("\n") || "No notes."}
 
 Tasks:
 ${tasks.map((item, i) =>
@@ -390,7 +526,7 @@ ${tasks.map((item, i) =>
 You can explain how to use your local tools.`;
 }
 
-/* ---------- SAFE CALCULATOR ---------- */
+/* ---------- CALCULATOR ---------- */
 
 function calculate(expression) {
   const tokens = [];
@@ -422,9 +558,7 @@ function calculate(expression) {
     throw new Error(`Invalid character: ${char}`);
   }
 
-  if (!tokens.length) {
-    throw new Error("Enter a calculation.");
-  }
+  if (!tokens.length) throw new Error("Enter a calculation.");
 
   let position = 0;
 
@@ -434,7 +568,6 @@ function calculate(expression) {
     while (tokens[position] === "+" || tokens[position] === "-") {
       const operator = tokens[position++];
       const right = parseTerm();
-
       value = operator === "+" ? value + right : value - right;
     }
 
@@ -444,11 +577,7 @@ function calculate(expression) {
   function parseTerm() {
     let value = parseFactor();
 
-    while (
-      tokens[position] === "*" ||
-      tokens[position] === "/" ||
-      tokens[position] === "%"
-    ) {
+    while (["*", "/", "%"].includes(tokens[position])) {
       const operator = tokens[position++];
       const right = parseFactor();
 
@@ -485,7 +614,8 @@ function calculate(expression) {
       return value;
     }
 
-    if (token === undefined || !/^(?:\d+\.?\d*|\.\d+)$/.test(token)) {
+    if (token === undefined ||
+        !/^(?:\d+\.?\d*|\.\d+)$/.test(token)) {
       throw new Error("Invalid calculation.");
     }
 
@@ -540,8 +670,8 @@ Other:
   if (lower.startsWith("/calc ")) {
     try {
       const expression = command.slice(6).trim();
-      const result = calculate(expression);
-      addMessage("assistant", `${expression} = ${result}`);
+      addMessage("assistant",
+        `${expression} = ${calculate(expression)}`);
     } catch (error) {
       addMessage("assistant", `Calculator error: ${error.message}`);
     }
@@ -593,8 +723,7 @@ Other:
     if (!note) {
       addMessage("assistant", "Write something after /note add.");
     } else {
-      notes.push(note);
-      saveState();
+      addNote("Untitled note", note);
       addMessage("assistant", "Note saved on this device.");
     }
     return true;
@@ -603,7 +732,9 @@ Other:
   if (lower === "/notes") {
     addMessage("assistant",
       notes.length
-        ? notes.map((note, i) => `${i + 1}. ${note}`).join("\n")
+        ? notes.map((note, i) =>
+          `${i + 1}. ${note.title}\n${note.content}`
+        ).join("\n\n")
         : "You have no saved notes."
     );
     return true;
@@ -617,7 +748,8 @@ Other:
     } else {
       const removed = notes.splice(number - 1, 1)[0];
       saveState();
-      addMessage("assistant", `Deleted note: ${removed}`);
+      renderNotes();
+      addMessage("assistant", `Deleted note: ${removed.title}`);
     }
     return true;
   }
@@ -635,15 +767,14 @@ Other:
   }
 
   if (lower === "/tasks") {
-    if (!tasks.length) {
-      addMessage("assistant", "Your task list is empty.");
-    } else {
-      const output = tasks.map((task, i) =>
-        `${i + 1}. ${task.done ? "[DONE]" : "[OPEN]"} [${task.priority}] ${task.text}${task.dueDate ? " | Due: " + task.dueDate : ""}`
-      ).join("\n");
-
-      addMessage("assistant", `ALL TASKS (${tasks.length})\n\n${output}`);
-    }
+    addMessage("assistant",
+      tasks.length
+        ? `ALL TASKS (${tasks.length})\n\n` +
+          tasks.map((task, i) =>
+            `${i + 1}. ${task.done ? "[DONE]" : "[OPEN]"} [${task.priority}] ${task.text}${task.dueDate ? " | Due: " + task.dueDate : ""}`
+          ).join("\n")
+        : "Your task list is empty."
+    );
     return true;
   }
 
@@ -679,9 +810,9 @@ Other:
     conversation = [];
     displayHistory = [];
     saveState();
-
     chatMessages.innerHTML = "";
-    addMessage("assistant", "Conversation cleared. Your notes and memories are safe.");
+    addMessage("assistant",
+      "Conversation cleared. Your notes and memories are safe.");
     return true;
   }
 
@@ -706,7 +837,6 @@ async function loadAI() {
     setProgress("Checking graphics support...", 2);
 
     const adapter = await navigator.gpu.requestAdapter();
-
     if (!adapter) {
       throw new Error("No compatible graphics adapter was found.");
     }
@@ -721,10 +851,8 @@ async function loadAI() {
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: report => {
         const progress = Math.max(
-          5,
-          Math.min(100, Math.round((report.progress || 0) * 100))
+          5, Math.min(100, Math.round((report.progress || 0) * 100))
         );
-
         setProgress(report.text || "Loading model...", progress);
       }
     });
@@ -733,7 +861,8 @@ async function loadAI() {
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
-    addMessage("assistant", "I'm ready. My local tools and memory are available.");
+    addMessage("assistant",
+      "I'm ready. My local tools and memory are available.");
 
   } catch (error) {
     engine = null;
@@ -742,7 +871,8 @@ async function loadAI() {
     loadButton.disabled = false;
     loadButton.textContent = "TRY AGAIN";
 
-    addMessage("assistant", `I couldn't load my AI model.\n${error.message}`);
+    addMessage("assistant",
+      `I couldn't load my AI model.\n${error.message}`);
     console.error(error);
 
   } finally {
@@ -759,7 +889,8 @@ async function sendMessage(text) {
   if (handleCommand(cleanText)) return;
 
   if (!engine) {
-    addMessage("assistant", "My AI model isn't loaded yet. Tap LOAD AI first.");
+    addMessage("assistant",
+      "My AI model isn't loaded yet. Tap LOAD AI first.");
     return;
   }
 
@@ -833,13 +964,15 @@ clearButton.addEventListener("click", () => {
   saveState();
 
   chatMessages.innerHTML = "";
-  addMessage("assistant", "Conversation cleared. Your notes and memories are safe.");
+  addMessage("assistant",
+    "Conversation cleared. Your notes and memories are safe.");
 });
 
 /* ---------- STARTUP ---------- */
 
 saveState();
 renderTasks();
+renderNotes();
 restoreConversation();
 
 if ("serviceWorker" in navigator) {

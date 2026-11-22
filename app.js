@@ -169,19 +169,79 @@ function restoreConversation() {
   chatMessages.innerHTML = "";
 
   if (!displayHistory.length) {
-    renderMessage("assistant",
-      "Welcome back. Your local tools and saved data are ready.");
+    renderMessage(
+      "assistant",
+      "Welcome back. Your local tools and saved data are ready."
+    );
     return;
   }
 
   for (const message of displayHistory) {
-    if (message &&
+    if (
+      message &&
       ["user", "assistant"].includes(message.sender) &&
-      typeof message.text === "string") {
+      typeof message.text === "string"
+    ) {
       renderMessage(message.sender, message.text);
     }
   }
 }
+
+/* ---------- NAVIGATION ---------- */
+
+function getActiveScreen() {
+  return document.querySelector(".screen:not([hidden])");
+}
+
+function switchScreen(screenId) {
+  document.querySelectorAll(".screen").forEach(screen => {
+    screen.hidden = screen.id !== screenId;
+  });
+
+  document.querySelectorAll(".nav-button").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.screen === screenId
+    );
+  });
+}
+
+document.querySelectorAll(".nav-button").forEach(button => {
+  button.addEventListener("click", () => {
+    switchScreen(button.dataset.screen);
+  });
+});
+
+/* ---------- PLUS BUTTON ---------- */
+
+clearButton.addEventListener("click", () => {
+  const activeScreen = getActiveScreen();
+
+  if (!activeScreen) return;
+
+  if (activeScreen.id === "chatScreen") {
+    if (!confirm("Start a new conversation?")) return;
+
+    conversation = [];
+    displayHistory = [];
+    saveState();
+
+    chatMessages.innerHTML = "";
+
+    addMessage(
+      "assistant",
+      "New conversation started. How can I help?"
+    );
+  }
+
+  else if (activeScreen.id === "notesScreen") {
+    noteTitle.focus();
+  }
+
+  else if (activeScreen.id === "tasksScreen") {
+    taskInput.focus();
+  }
+});
 
 /* ---------- TASK MANAGER ---------- */
 
@@ -219,7 +279,8 @@ function renderTasks() {
   taskEmpty.hidden = visibleTasks.length > 0;
 
   if (!tasks.length) {
-    taskEmpty.textContent = "No tasks yet. Add your first task above.";
+    taskEmpty.textContent =
+      "No tasks yet. Add your first task above.";
   } else if (!visibleTasks.length) {
     taskEmpty.textContent = "No tasks in this category.";
   }
@@ -232,8 +293,10 @@ function renderTasks() {
     check.type = "button";
     check.className = "task-check";
     check.textContent = task.done ? "✓" : "";
-    check.setAttribute("aria-label",
-      task.done ? "Mark task as open" : "Complete task");
+    check.setAttribute(
+      "aria-label",
+      task.done ? "Mark task as open" : "Complete task"
+    );
 
     check.addEventListener("click", () => {
       task.done = !task.done;
@@ -318,11 +381,13 @@ function editTask(id) {
   task.text = newText.trim();
 
   const newPriority = prompt(
-    "Priority: low, normal or high", task.priority
+    "Priority: low, normal or high",
+    task.priority
   );
 
   if (newPriority !== null) {
     const value = newPriority.trim().toLowerCase();
+
     if (["low", "normal", "high"].includes(value)) {
       task.priority = value;
     }
@@ -335,7 +400,8 @@ function editTask(id) {
 
   if (newDate !== null) {
     task.dueDate = /^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())
-      ? newDate.trim() : "";
+      ? newDate.trim()
+      : "";
   }
 
   saveState();
@@ -344,6 +410,7 @@ function editTask(id) {
 
 function deleteTask(id) {
   const task = tasks.find(item => item.id === id);
+
   if (!task || !confirm(`Delete "${task.text}"?`)) return;
 
   tasks = tasks.filter(item => item.id !== id);
@@ -392,7 +459,8 @@ function renderNotes() {
   noteEmpty.hidden = visibleNotes.length > 0;
 
   if (!notes.length) {
-    noteEmpty.textContent = "No notes yet. Create your first note above.";
+    noteEmpty.textContent =
+      "No notes yet. Create your first note above.";
   } else if (!visibleNotes.length) {
     noteEmpty.textContent = "No matching notes found.";
   }
@@ -483,6 +551,7 @@ function editNote(id) {
 
 function deleteNote(id) {
   const note = notes.find(item => item.id === id);
+
   if (!note || !confirm(`Delete "${note.title}"?`)) return;
 
   notes = notes.filter(item => item.id !== id);
@@ -558,7 +627,9 @@ function calculate(expression) {
     throw new Error(`Invalid character: ${char}`);
   }
 
-  if (!tokens.length) throw new Error("Enter a calculation.");
+  if (!tokens.length) {
+    throw new Error("Enter a calculation.");
+  }
 
   let position = 0;
 
@@ -568,7 +639,10 @@ function calculate(expression) {
     while (tokens[position] === "+" || tokens[position] === "-") {
       const operator = tokens[position++];
       const right = parseTerm();
-      value = operator === "+" ? value + right : value - right;
+
+      value = operator === "+"
+        ? value + right
+        : value - right;
     }
 
     return value;
@@ -599,6 +673,7 @@ function calculate(expression) {
     if (token === "+" || token === "-") {
       position++;
       const value = parseFactor();
+
       return token === "-" ? -value : value;
     }
 
@@ -614,8 +689,10 @@ function calculate(expression) {
       return value;
     }
 
-    if (token === undefined ||
-        !/^(?:\d+\.?\d*|\.\d+)$/.test(token)) {
+    if (
+      token === undefined ||
+      !/^(?:\d+\.?\d*|\.\d+)$/.test(token)
+    ) {
       throw new Error("Invalid calculation.");
     }
 
@@ -670,11 +747,15 @@ Other:
   if (lower.startsWith("/calc ")) {
     try {
       const expression = command.slice(6).trim();
-      addMessage("assistant",
-        `${expression} = ${calculate(expression)}`);
+
+      addMessage(
+        "assistant",
+        `${expression} = ${calculate(expression)}`
+      );
     } catch (error) {
       addMessage("assistant", `Calculator error: ${error.message}`);
     }
+
     return true;
   }
 
@@ -688,15 +769,18 @@ Other:
       saveState();
       addMessage("assistant", "Saved to local memory.");
     }
+
     return true;
   }
 
   if (lower === "/memories") {
-    addMessage("assistant",
+    addMessage(
+      "assistant",
       memories.length
         ? memories.map((item, i) => `${i + 1}. ${item}`).join("\n")
         : "Your memory is empty."
     );
+
     return true;
   }
 
@@ -714,6 +798,7 @@ Other:
       saveState();
       addMessage("assistant", "Memory deleted.");
     }
+
     return true;
   }
 
@@ -726,24 +811,31 @@ Other:
       addNote("Untitled note", note);
       addMessage("assistant", "Note saved on this device.");
     }
+
     return true;
   }
 
   if (lower === "/notes") {
-    addMessage("assistant",
+    addMessage(
+      "assistant",
       notes.length
         ? notes.map((note, i) =>
-          `${i + 1}. ${note.title}\n${note.content}`
-        ).join("\n\n")
+            `${i + 1}. ${note.title}\n${note.content}`
+          ).join("\n\n")
         : "You have no saved notes."
     );
+
     return true;
   }
 
   if (lower.startsWith("/note delete ")) {
     const number = Number(command.slice(13).trim());
 
-    if (!Number.isInteger(number) || number < 1 || number > notes.length) {
+    if (
+      !Number.isInteger(number) ||
+      number < 1 ||
+      number > notes.length
+    ) {
       addMessage("assistant", "That note number doesn't exist.");
     } else {
       const removed = notes.splice(number - 1, 1)[0];
@@ -751,6 +843,7 @@ Other:
       renderNotes();
       addMessage("assistant", `Deleted note: ${removed.title}`);
     }
+
     return true;
   }
 
@@ -763,11 +856,13 @@ Other:
       addTask(task);
       addMessage("assistant", "Task added.");
     }
+
     return true;
   }
 
   if (lower === "/tasks") {
-    addMessage("assistant",
+    addMessage(
+      "assistant",
       tasks.length
         ? `ALL TASKS (${tasks.length})\n\n` +
           tasks.map((task, i) =>
@@ -775,27 +870,41 @@ Other:
           ).join("\n")
         : "Your task list is empty."
     );
+
     return true;
   }
 
   if (lower.startsWith("/task done ")) {
     const number = Number(command.slice(11).trim());
 
-    if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    if (
+      !Number.isInteger(number) ||
+      number < 1 ||
+      number > tasks.length
+    ) {
       addMessage("assistant", "That task number doesn't exist.");
     } else {
       tasks[number - 1].done = true;
       saveState();
       renderTasks();
-      addMessage("assistant", `Completed: ${tasks[number - 1].text}`);
+
+      addMessage(
+        "assistant",
+        `Completed: ${tasks[number - 1].text}`
+      );
     }
+
     return true;
   }
 
   if (lower.startsWith("/task delete ")) {
     const number = Number(command.slice(13).trim());
 
-    if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    if (
+      !Number.isInteger(number) ||
+      number < 1 ||
+      number > tasks.length
+    ) {
       addMessage("assistant", "That task number doesn't exist.");
     } else {
       const removed = tasks.splice(number - 1, 1)[0];
@@ -803,6 +912,7 @@ Other:
       renderTasks();
       addMessage("assistant", `Deleted task: ${removed.text}`);
     }
+
     return true;
   }
 
@@ -810,9 +920,14 @@ Other:
     conversation = [];
     displayHistory = [];
     saveState();
+
     chatMessages.innerHTML = "";
-    addMessage("assistant",
-      "Conversation cleared. Your notes and memories are safe.");
+
+    addMessage(
+      "assistant",
+      "Conversation cleared. Your notes and memories are safe."
+    );
+
     return true;
   }
 
@@ -830,30 +945,42 @@ async function loadAI() {
 
   try {
     if (!navigator.gpu) {
-      throw new Error("WebGPU is unavailable in this Safari session.");
+      throw new Error(
+        "WebGPU is unavailable in this Safari session."
+      );
     }
 
     setStatus("CHECKING DEVICE");
     setProgress("Checking graphics support...", 2);
 
     const adapter = await navigator.gpu.requestAdapter();
+
     if (!adapter) {
-      throw new Error("No compatible graphics adapter was found.");
+      throw new Error(
+        "No compatible graphics adapter was found."
+      );
     }
 
     setStatus("LOADING AI ENGINE");
     setProgress("Preparing local AI engine...", 5);
 
-    const webllm = await import("https://esm.run/@mlc-ai/web-llm");
+    const webllm = await import(
+      "https://esm.run/@mlc-ai/web-llm"
+    );
 
     setStatus("LOADING LOCAL MODEL");
 
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: report => {
         const progress = Math.max(
-          5, Math.min(100, Math.round((report.progress || 0) * 100))
+          5,
+          Math.min(100, Math.round((report.progress || 0) * 100))
         );
-        setProgress(report.text || "Loading model...", progress);
+
+        setProgress(
+          report.text || "Loading model...",
+          progress
+        );
       }
     });
 
@@ -861,18 +988,24 @@ async function loadAI() {
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
-    addMessage("assistant",
-      "I'm ready. My local tools and memory are available.");
+    addMessage(
+      "assistant",
+      "I'm ready. My local tools and memory are available."
+    );
 
   } catch (error) {
     engine = null;
     setStatus("AI NOT LOADED");
     setProgress(`Error: ${error.message}`, 0);
+
     loadButton.disabled = false;
     loadButton.textContent = "TRY AGAIN";
 
-    addMessage("assistant",
-      `I couldn't load my AI model.\n${error.message}`);
+    addMessage(
+      "assistant",
+      `I couldn't load my AI model.\n${error.message}`
+    );
+
     console.error(error);
 
   } finally {
@@ -889,12 +1022,18 @@ async function sendMessage(text) {
   if (handleCommand(cleanText)) return;
 
   if (!engine) {
-    addMessage("assistant",
-      "My AI model isn't loaded yet. Tap LOAD AI first.");
+    addMessage(
+      "assistant",
+      "My AI model isn't loaded yet. Tap LOAD AI first."
+    );
     return;
   }
 
-  conversation.push({ role: "user", content: cleanText });
+  conversation.push({
+    role: "user",
+    content: cleanText
+  });
+
   conversation = conversation.slice(-12);
   saveState();
 
@@ -906,7 +1045,10 @@ async function sendMessage(text) {
   try {
     const response = await engine.chat.completions.create({
       messages: [
-        { role: "system", content: getSystemPrompt() },
+        {
+          role: "system",
+          content: getSystemPrompt()
+        },
         ...conversation
       ],
       temperature: 0.7,
@@ -919,19 +1061,32 @@ async function sendMessage(text) {
 
     replyBubble.textContent = answer;
 
-    conversation.push({ role: "assistant", content: answer });
+    conversation.push({
+      role: "assistant",
+      content: answer
+    });
+
     conversation = conversation.slice(-12);
 
-    const lastMessage = displayHistory[displayHistory.length - 1];
-    if (lastMessage) lastMessage.text = answer;
+    const lastMessage =
+      displayHistory[displayHistory.length - 1];
+
+    if (lastMessage) {
+      lastMessage.text = answer;
+    }
 
     saveState();
 
   } catch (error) {
-    replyBubble.textContent = `Generation error: ${error.message}`;
+    replyBubble.textContent =
+      `Generation error: ${error.message}`;
 
-    const lastMessage = displayHistory[displayHistory.length - 1];
-    if (lastMessage) lastMessage.text = replyBubble.textContent;
+    const lastMessage =
+      displayHistory[displayHistory.length - 1];
+
+    if (lastMessage) {
+      lastMessage.text = replyBubble.textContent;
+    }
 
     saveState();
     console.error(error);
@@ -958,16 +1113,6 @@ chatForm.addEventListener("submit", async event => {
   await sendMessage(text);
 });
 
-clearButton.addEventListener("click", () => {
-  conversation = [];
-  displayHistory = [];
-  saveState();
-
-  chatMessages.innerHTML = "";
-  addMessage("assistant",
-    "Conversation cleared. Your notes and memories are safe.");
-});
-
 /* ---------- STARTUP ---------- */
 
 saveState();
@@ -978,6 +1123,8 @@ restoreConversation();
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js")
-      .catch(error => console.error("Service worker error:", error));
+      .catch(error => {
+        console.error("Service worker error:", error);
+      });
   });
 }

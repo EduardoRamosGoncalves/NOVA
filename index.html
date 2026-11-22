@@ -9,77 +9,10 @@
   <title>NOVA</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=2">
-
-  <style>
-    .navigation {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin: 18px 0;
-      padding: 6px;
-      background: #171717;
-      border-radius: 14px;
-    }
-
-    .nav-button {
-      padding: 14px 5px;
-      border: 0;
-      border-radius: 10px;
-      background: transparent;
-      color: #aaa;
-      font-weight: bold;
-      font-size: 12px;
-    }
-
-    .nav-button.active {
-      background: #a71929;
-      color: white;
-    }
-
-    .screen[hidden] {
-      display: none !important;
-    }
-
-    .screen {
-      width: 100%;
-    }
-
-    /* FIXED TASK DATE FIELD */
-
-    .task-options {
-      display: grid !important;
-      grid-template-columns: minmax(0, 1fr) 125px !important;
-      gap: 8px;
-      width: 100%;
-      min-width: 0;
-    }
-
-    .task-options select {
-      width: 100%;
-      min-width: 0;
-    }
-
-    .task-options input[type="date"] {
-      width: 125px !important;
-      min-width: 125px !important;
-      max-width: 125px !important;
-      justify-self: start;
-      padding: 8px 4px;
-      font-size: 11px;
-      overflow: hidden;
-    }
-
-    .task-options .task-add-button {
-      grid-column: 1 / -1;
-      width: 100%;
-    }
-  </style>
+  <link rel="stylesheet" href="./style.css?v=3">
 </head>
-
 <body>
 <main class="app">
-
   <header class="header">
     <div class="brand">
       <div class="logo">N</div>
@@ -88,7 +21,6 @@
         <p id="status">LOCAL ASSISTANT · AI NOT LOADED</p>
       </div>
     </div>
-
     <div class="header-buttons">
       <button id="loadModelButton" class="load-button">LOAD AI</button>
       <button id="clearButton" class="clear-button">＋</button>
@@ -102,34 +34,30 @@
   </nav>
 
   <section id="chatScreen" class="screen">
-
     <div id="progressArea" class="progress-area">
       <div id="progressText">AI model not loaded</div>
-      <div class="progress-track">
-        <div id="progressBar"></div>
-      </div>
+      <div class="progress-track"><div id="progressBar"></div></div>
     </div>
 
-    <section id="chatMessages" class="messages">
-      <div class="message assistant">
-        <div class="sender">NOVA</div>
-        <div class="bubble">
-          Hello. I'm NOVA. Load my local AI model to start talking with me.
-        </div>
-      </div>
-    </section>
+    <section id="chatMessages" class="messages"></section>
+
+    <div id="attachmentPreview" class="attachment-preview" hidden></div>
 
     <form id="chatForm" class="composer">
+      <input id="fileInput" type="file"
+        accept=".txt,.md,.csv,.json,.pdf,.docx,image/*"
+        multiple hidden>
+      <button id="attachButton" type="button" class="attach-button"
+        aria-label="Attach files">＋</button>
       <input id="messageInput" type="text"
-        placeholder="Message NOVA..." autocomplete="off" required>
+        placeholder="Message NOVA..." autocomplete="off">
       <button id="sendButton" type="submit">SEND</button>
     </form>
-
+    <p class="attachment-hint">TXT, MD, CSV, JSON, PDF, DOCX and images</p>
   </section>
 
   <section id="notesScreen" class="screen" hidden>
     <section class="notes-panel">
-
       <div class="notes-heading">
         <div>
           <h2>MY NOTES</h2>
@@ -137,33 +65,22 @@
         </div>
         <span class="notes-icon">✎</span>
       </div>
-
       <form id="noteForm" class="note-form">
-        <input id="noteTitle" type="text"
-          placeholder="Note title" maxlength="100" required>
-
-        <textarea id="noteContent"
-          placeholder="Write your note..."
+        <input id="noteTitle" type="text" placeholder="Note title"
+          maxlength="100" required>
+        <textarea id="noteContent" placeholder="Write your note..."
           rows="3" maxlength="5000" required></textarea>
-
         <button type="submit" class="note-add-button">SAVE NOTE</button>
       </form>
-
-      <input id="noteSearch" class="note-search"
-        type="search" placeholder="Search your notes...">
-
+      <input id="noteSearch" class="note-search" type="search"
+        placeholder="Search your notes...">
       <div id="noteList" class="note-list"></div>
-
-      <p id="noteEmpty" class="note-empty">
-        No notes yet. Create your first note above.
-      </p>
-
+      <p id="noteEmpty" class="note-empty">No notes yet.</p>
     </section>
   </section>
 
   <section id="tasksScreen" class="screen" hidden>
     <section class="task-panel">
-
       <div class="task-heading">
         <div>
           <h2>MY TASKS</h2>
@@ -171,37 +88,27 @@
         </div>
         <span class="task-icon">✓</span>
       </div>
-
       <form id="taskForm" class="task-form">
         <input id="taskInput" type="text"
           placeholder="What do you need to do?"
           maxlength="180" required>
-
         <div class="task-options">
           <select id="taskPriority">
             <option value="normal">Normal priority</option>
             <option value="high">High priority</option>
             <option value="low">Low priority</option>
           </select>
-
           <input id="taskDueDate" type="date">
-
           <button type="submit" class="task-add-button">ADD TASK</button>
         </div>
       </form>
-
       <div class="task-filters">
         <button type="button" class="task-filter active" data-filter="all">ALL</button>
         <button type="button" class="task-filter" data-filter="open">OPEN</button>
         <button type="button" class="task-filter" data-filter="done">COMPLETED</button>
       </div>
-
       <div id="taskList" class="task-list"></div>
-
-      <p id="taskEmpty" class="task-empty">
-        No tasks yet. Add your first task above.
-      </p>
-
+      <p id="taskEmpty" class="task-empty">No tasks yet.</p>
     </section>
   </section>
 
@@ -209,25 +116,7 @@
     <span>PRIVATE BY DESIGN</span>
     <span>RUNNING LOCALLY</span>
   </footer>
-
 </main>
-
-<script>
-  document.querySelectorAll(".nav-button").forEach(button => {
-    button.addEventListener("click", () => {
-      const target = button.dataset.screen;
-
-      document.querySelectorAll(".screen").forEach(screen => {
-        screen.hidden = screen.id !== target;
-      });
-
-      document.querySelectorAll(".nav-button").forEach(nav => {
-        nav.classList.toggle("active", nav === button);
-      });
-    });
-  });
-</script>
-
 <script type="module" src="./app.js"></script>
 </body>
 </html>

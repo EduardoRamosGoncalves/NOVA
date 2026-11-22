@@ -1,0 +1,63 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101010">
+    <title>NOVA</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="app">
+
+        <header class="header">
+            <div>
+                <h1>NOVA<span>.</span></h1>
+                <p id="status">LOCAL SYSTEM ONLINE</p>
+            </div>
+
+            <button id="clearButton" class="icon-button"
+                aria-label="Clear conversation">＋</button>
+        </header>
+
+        <section id="chat" class="chat">
+            <div class="welcome">
+                <h2>How can I help?</h2>
+                <p>Your personal assistant.</p>
+            </div>
+        </section>
+
+        <form id="messageForm" class="input-area">
+            <input
+                id="messageInput"
+                type="text"
+                placeholder="Message NOVA..."
+                autocomplete="off"
+                required
+            >
+            <button type="submit" id="sendButton">↑</button>
+        </form>
+
+        <footer>
+            <button id="memoryButton">MEMORY</button>
+            <span> N O V A </span>
+            <button id="helpButton">COMMANDS</button>
+        </footer>
+
+    </main>
+
+    <div id="memoryPanel" class="panel hidden">
+        <div class="panel-content">
+            <div class="panel-header">
+                <h2>Memory</h2>
+                <button id="closeMemory">✕</button>
+            </div>
+            <div id="memoryList"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

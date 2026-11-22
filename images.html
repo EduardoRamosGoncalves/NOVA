@@ -4,12 +4,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NOVA Image Reader</title>
-
+<title>NOVA Vision</title>
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -24,13 +21,7 @@ main {
   margin: auto;
 }
 
-h1 {
-  color: #ff3030;
-}
-
-.subtitle, .small {
-  color: #999;
-}
+h1 { color: #ff3030; }
 
 .panel {
   background: #151515;
@@ -40,14 +31,13 @@ h1 {
   margin-top: 18px;
 }
 
-input, select {
+input {
   width: 100%;
   padding: 13px;
   background: #202020;
   color: white;
   border: 1px solid #444;
   border-radius: 10px;
-  margin-top: 8px;
 }
 
 button {
@@ -62,14 +52,7 @@ button {
   font-weight: 600;
 }
 
-button.secondary {
-  background: #292929;
-  border: 1px solid #444;
-}
-
-button:disabled {
-  opacity: 0.5;
-}
+button:disabled { opacity: 0.5; }
 
 #preview {
   display: none;
@@ -78,15 +61,13 @@ button:disabled {
   object-fit: contain;
   margin-top: 16px;
   border-radius: 10px;
-  background: #080808;
 }
 
 textarea {
   width: 100%;
-  min-height: 240px;
+  min-height: 180px;
   margin-top: 12px;
   padding: 14px;
-  resize: vertical;
   background: #0d0d0d;
   color: white;
   border: 1px solid #393939;
@@ -103,78 +84,53 @@ textarea {
 
 <body>
 <main>
-  <h1>NOVA Image Reader</h1>
-  <p class="subtitle">Extract text from photos and screenshots.</p>
+  <h1>NOVA Vision</h1>
+  <p>Local image description.</p>
 
   <section class="panel">
-    <label for="imageInput">Choose an image</label>
-    <input
-      id="imageInput"
-      type="file"
-      accept="image/*"
-    >
-
-    <img id="preview" alt="Selected image preview">
-
-    <label for="language">Recognition language</label>
-    <select id="language">
-      <option value="eng">English</option>
-      <option value="fra">French</option>
-      <option value="deu">German</option>
-      <option value="spa">Spanish</option>
-    </select>
-
-    <button id="readButton">READ IMAGE</button>
+    <input id="imageInput" type="file" accept="image/*">
+    <img id="preview" alt="Selected image">
+    <button id="analyzeButton">ANALYZE IMAGE</button>
     <p id="status">Choose an image to begin.</p>
-    <p class="small">
-      OCR processes the image in your browser.
-      The image is not uploaded to a server.
-    </p>
   </section>
 
   <section class="panel">
-    <label for="output">Recognized text</label>
-    <textarea
-      id="output"
-      placeholder="Recognized text will appear here..."
-    ></textarea>
-
-    <button id="copyButton">COPY TEXT FOR NOVA</button>
+    <label for="output">Image description</label>
+    <textarea id="output" readonly></textarea>
+    <button id="copyButton">COPY DESCRIPTION FOR NOVA</button>
   </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script type="module">
+import { pipeline } from
+  "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
 
-<script>
-const imageInput = document.getElementById("imageInput");
-const preview = document.getElementById("preview");
-const readButton = document.getElementById("readButton");
-const copyButton = document.getElementById("copyButton");
-const output = document.getElementById("output");
-const status = document.getElementById("status");
-const language = document.getElementById("language");
+const $ = id => document.getElementById(id);
+
+const imageInput = $("imageInput");
+const preview = $("preview");
+const analyzeButton = $("analyzeButton");
+const copyButton = $("copyButton");
+const status = $("status");
+const output = $("output");
 
 let imageURL = null;
-let worker = null;
+let captioner = null;
 
 imageInput.addEventListener("change", () => {
   const file = imageInput.files[0];
-
   if (!file) return;
 
-  if (imageURL) {
-    URL.revokeObjectURL(imageURL);
-  }
+  if (imageURL) URL.revokeObjectURL(imageURL);
 
   imageURL = URL.createObjectURL(file);
   preview.src = imageURL;
   preview.style.display = "block";
-
   output.value = "";
   status.textContent = "Image selected.";
 });
 
-readButton.addEventListener("click", async () => {
+analyzeButton.addEventListener("click", async () => {
   const file = imageInput.files[0];
 
   if (!file) {
@@ -182,78 +138,50 @@ readButton.addEventListener("click", async () => {
     return;
   }
 
-  if (!window.Tesseract) {
-    status.textContent = "OCR library failed to load. Check your connection.";
-    return;
-  }
-
-  readButton.disabled = true;
+  analyzeButton.disabled = true;
   output.value = "";
 
   try {
-    status.textContent = "Loading recognition engine...";
+    if (!captioner) {
+      status.textContent = "Loading vision model. First download may take a while.";
 
-    if (worker) {
-      await worker.terminate();
-      worker = null;
+      captioner = await pipeline(
+        "image-to-text",
+        "Xenova/vit-gpt2-image-captioning"
+      );
     }
 
-    worker = await Tesseract.createWorker(
-      language.value,
-      1,
-      {
-        logger: message => {
-          if (message.status) {
-            const progress = message.progress
-              ? Math.round(message.progress * 100) + "%"
-              : "";
+    status.textContent = "Analyzing image...";
 
-            status.textContent =
-              message.status + " " + progress;
-          }
-        }
-      }
-    );
+    const result = await captioner(preview);
 
-    status.textContent = "Recognizing text...";
+    const description = result
+      .map(item => item.generated_text)
+      .filter(Boolean)
+      .join("\n");
 
-    const result = await worker.recognize(file);
-
-    output.value = result.data.text || "";
-
-    if (output.value.trim()) {
-      status.textContent = "Image processed successfully.";
-    } else {
-      status.textContent = "No readable text was found.";
-    }
-
-    await worker.terminate();
-    worker = null;
+    output.value = description || "No description was generated.";
+    status.textContent = "Image analysis complete.";
 
   } catch (error) {
     status.textContent = "Error: " + error.message;
-
-    if (worker) {
-      await worker.terminate();
-      worker = null;
-    }
   } finally {
-    readButton.disabled = false;
+    analyzeButton.disabled = false;
   }
 });
 
 copyButton.addEventListener("click", async () => {
   if (!output.value.trim()) {
-    status.textContent = "There is no text to copy.";
+    status.textContent = "No description to copy.";
     return;
   }
 
   try {
     await navigator.clipboard.writeText(output.value);
-    status.textContent = "Text copied. Paste it into NOVA.";
+    status.textContent = "Copied. Paste the description into NOVA.";
   } catch {
     output.select();
-    status.textContent = "Select and copy the text manually.";
+    status.textContent = "Select and copy the description manually.";
   }
 });
 </script>

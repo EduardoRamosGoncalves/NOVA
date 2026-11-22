@@ -1,68 +1,65 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#090909">
-
-    <title>NOVA</title>
-
-    <link rel="manifest" href="./manifest.json">
-    <link rel="icon" href="./icon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <meta name="description" content="NOVA, your private local AI assistant.">
+  <title>NOVA</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
-
-    <main class="app">
-
-        <header class="header">
-            <div>
-                <h1>NOVA<span>.</span></h1>
-                <p id="status">LOCAL SYSTEM ONLINE</p>
-            </div>
-
-            <button id="clearButton" class="icon-button"
-                aria-label="Clear conversation">＋</button>
-        </header>
-
-        <section id="chat" class="chat">
-            <div class="welcome">
-                <h2>How can I help?</h2>
-                <p>Your personal assistant.</p>
-            </div>
-        </section>
-
-        <form id="messageForm" class="input-area">
-            <input
-                id="messageInput"
-                type="text"
-                placeholder="Message NOVA..."
-                autocomplete="off"
-                required
-            >
-            <button type="submit" id="sendButton">↑</button>
-        </form>
-
-        <footer>
-            <button id="memoryButton">MEMORY</button>
-            <span>N O V A</span>
-            <button id="helpButton">COMMANDS</button>
-        </footer>
-
-    </main>
-
-    <div id="memoryPanel" class="panel hidden">
-        <div class="panel-content">
-            <div class="panel-header">
-                <h2>Memory</h2>
-                <button id="closeMemory">✕</button>
-            </div>
-            <div id="memoryList"></div>
+  <main class="app">
+    <header class="header">
+      <div class="brand">
+        <div class="logo">N</div>
+        <div>
+          <h1>NOVA</h1>
+          <p id="status">LOCAL ASSISTANT · AI NOT LOADED</p>
         </div>
+      </div>
+
+      <div class="header-buttons">
+        <button id="loadModelButton" class="load-button">LOAD AI</button>
+        <button id="clearButton" class="clear-button" aria-label="Clear conversation">＋</button>
+      </div>
+    </header>
+
+    <section id="chatMessages" class="messages">
+      <div class="message assistant">
+        <div class="sender">NOVA</div>
+        <div class="bubble">
+          Hello. I'm NOVA. Load my local AI model to start talking with me.
+        </div>
+      </div>
+    </section>
+
+    <div id="progressArea" class="progress-area">
+      <div id="progressText">AI model not loaded</div>
+      <div class="progress-track">
+        <div id="progressBar"></div>
+      </div>
     </div>
 
-    <script src="./app.js"></script>
+    <form id="chatForm" class="composer">
+      <input
+        id="messageInput"
+        type="text"
+        placeholder="Message NOVA..."
+        autocomplete="off"
+        required
+      >
+      <button id="sendButton" type="submit">SEND</button>
+    </form>
+
+    <footer>
+      <span>PRIVATE BY DESIGN</span>
+      <span>RUNNING LOCALLY</span>
+    </footer>
+  </main>
+
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

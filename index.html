@@ -10,7 +10,42 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
+
+  <style>
+    .screen[hidden] {
+      display: none !important;
+    }
+
+    .navigation {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 20px 0;
+      padding: 6px;
+      background: #151515;
+      border: 1px solid #292929;
+      border-radius: 14px;
+    }
+
+    .nav-button {
+      padding: 13px 6px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: #999;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+    }
+
+    .nav-button.active {
+      background: #a71929;
+      color: white;
+    }
+  </style>
 </head>
+
 <body>
   <main class="app">
 
@@ -29,93 +64,137 @@
       </div>
     </header>
 
-    <section class="task-panel">
-      <div class="task-heading">
-        <div>
-          <h2>MY TASKS</h2>
-          <p id="taskSummary">0 open · 0 completed</p>
+    <nav class="navigation">
+      <button class="nav-button active" data-screen="chatScreen">
+        CHAT
+      </button>
+
+      <button class="nav-button" data-screen="notesScreen">
+        NOTES
+      </button>
+
+      <button class="nav-button" data-screen="tasksScreen">
+        TASKS
+      </button>
+    </nav>
+
+    <!-- CHAT SCREEN -->
+    <section id="chatScreen" class="screen">
+
+      <div id="progressArea" class="progress-area">
+        <div id="progressText">AI model not loaded</div>
+        <div class="progress-track">
+          <div id="progressBar"></div>
         </div>
-        <span class="task-icon">✓</span>
       </div>
 
-      <form id="taskForm" class="task-form">
-        <input id="taskInput" type="text"
-          placeholder="What do you need to do?"
-          maxlength="180" required>
-
-        <div class="task-options">
-          <select id="taskPriority">
-            <option value="normal">Normal priority</option>
-            <option value="high">High priority</option>
-            <option value="low">Low priority</option>
-          </select>
-
-          <input id="taskDueDate" type="date">
-          <button type="submit" class="task-add-button">ADD TASK</button>
+      <section id="chatMessages" class="messages">
+        <div class="message assistant">
+          <div class="sender">NOVA</div>
+          <div class="bubble">
+            Hello. I'm NOVA. Load my local AI model to start talking with me.
+          </div>
         </div>
+      </section>
+
+      <form id="chatForm" class="composer">
+        <input id="messageInput" type="text"
+          placeholder="Message NOVA..."
+          autocomplete="off" required>
+
+        <button id="sendButton" type="submit">SEND</button>
       </form>
 
-      <div class="task-filters">
-        <button type="button" class="task-filter active" data-filter="all">ALL</button>
-        <button type="button" class="task-filter" data-filter="open">OPEN</button>
-        <button type="button" class="task-filter" data-filter="done">COMPLETED</button>
-      </div>
-
-      <div id="taskList" class="task-list"></div>
-      <p id="taskEmpty" class="task-empty">No tasks yet. Add your first task above.</p>
     </section>
 
-    <section class="notes-panel">
-      <div class="notes-heading">
-        <div>
-          <h2>MY NOTES</h2>
-          <p id="notesSummary">0 saved notes</p>
+    <!-- NOTES SCREEN -->
+    <section id="notesScreen" class="screen" hidden>
+
+      <section class="notes-panel">
+        <div class="notes-heading">
+          <div>
+            <h2>MY NOTES</h2>
+            <p id="notesSummary">0 saved notes</p>
+          </div>
+          <span class="notes-icon">✎</span>
         </div>
-        <span class="notes-icon">✎</span>
-      </div>
 
-      <form id="noteForm" class="note-form">
-        <input id="noteTitle" type="text"
-          placeholder="Note title" maxlength="100" required>
+        <form id="noteForm" class="note-form">
+          <input id="noteTitle" type="text"
+            placeholder="Note title" maxlength="100" required>
 
-        <textarea id="noteContent"
-          placeholder="Write your note..."
-          rows="3" maxlength="5000" required></textarea>
+          <textarea id="noteContent"
+            placeholder="Write your note..."
+            rows="3" maxlength="5000" required></textarea>
 
-        <button type="submit" class="note-add-button">SAVE NOTE</button>
-      </form>
+          <button type="submit" class="note-add-button">
+            SAVE NOTE
+          </button>
+        </form>
 
-      <input id="noteSearch" class="note-search"
-        type="search" placeholder="Search your notes...">
+        <input id="noteSearch" class="note-search"
+          type="search" placeholder="Search your notes...">
 
-      <div id="noteList" class="note-list"></div>
-      <p id="noteEmpty" class="note-empty">
-        No notes yet. Create your first note above.
-      </p>
+        <div id="noteList" class="note-list"></div>
+
+        <p id="noteEmpty" class="note-empty">
+          No notes yet. Create your first note above.
+        </p>
+      </section>
+
     </section>
 
-    <div id="progressArea" class="progress-area">
-      <div id="progressText">AI model not loaded</div>
-      <div class="progress-track">
-        <div id="progressBar"></div>
-      </div>
-    </div>
+    <!-- TASKS SCREEN -->
+    <section id="tasksScreen" class="screen" hidden>
 
-    <section id="chatMessages" class="messages">
-      <div class="message assistant">
-        <div class="sender">NOVA</div>
-        <div class="bubble">
-          Hello. I'm NOVA. Load my local AI model to start talking with me.
+      <section class="task-panel">
+        <div class="task-heading">
+          <div>
+            <h2>MY TASKS</h2>
+            <p id="taskSummary">0 open · 0 completed</p>
+          </div>
+          <span class="task-icon">✓</span>
         </div>
-      </div>
-    </section>
 
-    <form id="chatForm" class="composer">
-      <input id="messageInput" type="text"
-        placeholder="Message NOVA..."
-        autocomplete="off" required>
-      <button id="sendButton" type="submit">SEND</button>
-    </form>
+        <form id="taskForm" class="task-form">
+          <input id="taskInput" type="text"
+            placeholder="What do you need to do?"
+            maxlength="180" required>
+
+          <div class="task-options">
+            <select id="taskPriority">
+              <option value="normal">Normal priority</option>
+              <option value="high">High priority</option>
+              <option value="low">Low priority</option>
+            </select>
+
+            <input id="taskDueDate" type="date">
+
+            <button type="submit" class="task-add-button">
+              ADD TASK
+            </button>
+          </div>
+        </form>
+
+        <div class="task-filters">
+          <button type="button" class="task-filter active"
+            data-filter="all">ALL</button>
+
+          <button type="button" class="task-filter"
+            data-filter="open">OPEN</button>
+
+          <button type="button" class="task-filter"
+            data-filter="done">COMPLETED</button>
+        </div>
+
+        <div id="taskList" class="task-list"></div>
+
+        <p id="taskEmpty" class="task-empty">
+          No tasks yet. Add your first task above.
+        </p>
+      </section>
+
+    </section>
 
     <footer>
       <span>PRIVATE BY DESIGN</span>
@@ -123,6 +202,31 @@
     </footer>
 
   </main>
+
+  <script>
+    const navigationButtons =
+      document.querySelectorAll(".nav-button");
+
+    const screens =
+      document.querySelectorAll(".screen");
+
+    navigationButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.screen;
+
+        screens.forEach(screen => {
+          screen.hidden = screen.id !== target;
+        });
+
+        navigationButtons.forEach(navButton => {
+          navButton.classList.toggle(
+            "active",
+            navButton === button
+          );
+        });
+      });
+    });
+  </script>
 
   <script type="module" src="./app.js"></script>
 </body>

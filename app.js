@@ -157,7 +157,7 @@ function renderMessage(sender, text) {
 
 function addMessage(sender, text) {
   displayHistory.push({ sender, text });
-  displayHistory = displayHistory.slice(-100);
+  displayHistory = displayHistory.slice(-300);
 
   const bubble = renderMessage(sender, text);
   saveState();
@@ -349,8 +349,13 @@ function renderTasks() {
 }
 
 function addTask(text, priority = "normal", dueDate = "") {
-  const cleanText = text.trim();
+  const cleanText = String(text).trim();
+
   if (!cleanText) return false;
+
+  if (!["low", "normal", "high"].includes(priority)) {
+    priority = "normal";
+  }
 
   tasks.push({
     id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -363,6 +368,7 @@ function addTask(text, priority = "normal", dueDate = "") {
 
   saveState();
   renderTasks();
+
   return true;
 }
 
@@ -378,19 +384,18 @@ function editTask(id) {
     return;
   }
 
-  task.text = newText.trim();
-
   const newPriority = prompt(
     "Priority: low, normal or high",
     task.priority
   );
 
-  if (newPriority !== null) {
-    const value = newPriority.trim().toLowerCase();
+  if (newPriority === null) return;
 
-    if (["low", "normal", "high"].includes(value)) {
-      task.priority = value;
-    }
+  const priority = newPriority.trim().toLowerCase();
+
+  if (!["low", "normal", "high"].includes(priority)) {
+    alert("Invalid priority. Use low, normal or high.");
+    return;
   }
 
   const newDate = prompt(
@@ -398,14 +403,33 @@ function editTask(id) {
     task.dueDate
   );
 
-  if (newDate !== null) {
-    task.dueDate = /^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())
-      ? newDate.trim()
-      : "";
+  if (newDate === null) return;
+
+  const cleanDate = newDate.trim();
+
+  if (
+    cleanDate &&
+    !isValidDate(cleanDate)
+  ) {
+    alert("Invalid date. Use YYYY-MM-DD.");
+    return;
   }
+
+  task.text = newText.trim();
+  task.priority = priority;
+  task.dueDate = cleanDate;
 
   saveState();
   renderTasks();
+}
+
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value;
 }
 
 function deleteTask(id) {
@@ -414,8 +438,152 @@ function deleteTask(id) {
   if (!task || !confirm(`Delete "${task.text}"?`)) return;
 
   tasks = tasks.filter(item => item.id !== id);
+
   saveState();
   renderTasks();
+}
+
+function getTaskList(filter = "all") {
+  return tasks
+    .map((task, index) => ({ task, number: index + 1 }))
+    .filter(item => {
+      if (filter === "open") return !item.task.done;
+      if (filter === "done") return item.task.done;
+      return true;
+    });
+}
+
+function showTasks(filter = "all") {
+  const list = getTaskList(filter);
+
+  const title = filter === "open"
+    ? "OPEN TASKS"
+    : filter === "done"
+      ? "COMPLETED TASKS"
+      : "ALL TASKS";
+
+  if (!list.length) {
+    addMessage(
+      "assistant",
+      `${title}\n\nThere are no tasks in this category.`
+    );
+    return;
+  }
+
+  const header = `${title} (${list.length})`;
+
+  const lines = list.map(({ task, number }) => {
+    const status = task.done ? "[DONE]" : "[OPEN]";
+    const due = task.dueDate ? ` | Due: ${task.dueDate}` : "";
+
+    return `${number}. ${status} [${task.priority.toUpperCase()}] ${task.text}${due}`;
+  });
+
+  const chunkSize = 20;
+
+  for (let i = 0; i < lines.length; i += chunkSize) {
+    const section = lines.slice(i, i + chunkSize);
+
+    const sectionHeader = i === 0
+      ? header
+      : `${title} (continued)`;
+
+    addMessage(
+      "assistant",
+      `${sectionHeader}\n\n${section.join("\n")}`
+    );
+  }
+}
+
+function completeTask(number) {
+  if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    addMessage("assistant", "That task number doesn't exist.");
+    return;
+  }
+
+  const task = tasks[number - 1];
+
+  if (task.done) {
+    addMessage("assistant", `"${task.text}" is already completed.`);
+    return;
+  }
+
+  task.done = true;
+
+  saveState();
+  renderTasks();
+
+  addMessage("assistant", `Completed: ${task.text}`);
+}
+
+function reopenTask(number) {
+  if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    addMessage("assistant", "That task number doesn't exist.");
+    return;
+  }
+
+  const task = tasks[number - 1];
+
+  if (!task.done) {
+    addMessage("assistant", `"${task.text}" is already open.`);
+    return;
+  }
+
+  task.done = false;
+
+  saveState();
+  renderTasks();
+
+  addMessage("assistant", `Reopened: ${task.text}`);
+}
+
+function removeTaskByNumber(number) {
+  if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    addMessage("assistant", "That task number doesn't exist.");
+    return;
+  }
+
+  const task = tasks[number - 1];
+
+  if (!confirm(`Delete "${task.text}"?`)) return;
+
+  tasks.splice(number - 1, 1);
+
+  saveState();
+  renderTasks();
+
+  addMessage("assistant", `Deleted task: ${task.text}`);
+}
+
+function editTaskByNumber(number) {
+  if (!Number.isInteger(number) || number < 1 || number > tasks.length) {
+    addMessage("assistant", "That task number doesn't exist.");
+    return;
+  }
+
+  editTask(tasks[number - 1].id);
+  addMessage("assistant", "Task editing finished.");
+}
+
+function clearCompletedTasks() {
+  const completed = tasks.filter(task => task.done).length;
+
+  if (!completed) {
+    addMessage("assistant", "There are no completed tasks to delete.");
+    return;
+  }
+
+  if (!confirm(`Delete all ${completed} completed tasks?`)) return;
+
+  tasks = tasks.filter(task => !task.done);
+
+  saveState();
+  renderTasks();
+
+  addMessage(
+    "assistant",
+    `Deleted ${completed} completed ${completed === 1 ? "task" : "tasks"}.`
+  );
 }
 
 taskForm.addEventListener("submit", event => {
@@ -519,6 +687,7 @@ function addNote(title, content) {
 
   saveState();
   renderNotes();
+
   return true;
 }
 
@@ -555,6 +724,7 @@ function deleteNote(id) {
   if (!note || !confirm(`Delete "${note.title}"?`)) return;
 
   notes = notes.filter(item => item.id !== id);
+
   saveState();
   renderNotes();
 }
@@ -735,8 +905,13 @@ Notes:
 Tasks:
 /task add [text]
 /tasks
+/tasks open
+/tasks done
 /task done [number]
+/task reopen [number]
+/task edit [number]
 /task delete [number]
+/task clear completed
 
 Other:
 /clear
@@ -839,8 +1014,10 @@ Other:
       addMessage("assistant", "That note number doesn't exist.");
     } else {
       const removed = notes.splice(number - 1, 1)[0];
+
       saveState();
       renderNotes();
+
       addMessage("assistant", `Deleted note: ${removed.title}`);
     }
 
@@ -861,58 +1038,46 @@ Other:
   }
 
   if (lower === "/tasks") {
-    addMessage(
-      "assistant",
-      tasks.length
-        ? `ALL TASKS (${tasks.length})\n\n` +
-          tasks.map((task, i) =>
-            `${i + 1}. ${task.done ? "[DONE]" : "[OPEN]"} [${task.priority}] ${task.text}${task.dueDate ? " | Due: " + task.dueDate : ""}`
-          ).join("\n")
-        : "Your task list is empty."
-    );
+    showTasks("all");
+    return true;
+  }
 
+  if (lower === "/tasks open") {
+    showTasks("open");
+    return true;
+  }
+
+  if (lower === "/tasks done") {
+    showTasks("done");
     return true;
   }
 
   if (lower.startsWith("/task done ")) {
     const number = Number(command.slice(11).trim());
+    completeTask(number);
+    return true;
+  }
 
-    if (
-      !Number.isInteger(number) ||
-      number < 1 ||
-      number > tasks.length
-    ) {
-      addMessage("assistant", "That task number doesn't exist.");
-    } else {
-      tasks[number - 1].done = true;
-      saveState();
-      renderTasks();
+  if (lower.startsWith("/task reopen ")) {
+    const number = Number(command.slice(13).trim());
+    reopenTask(number);
+    return true;
+  }
 
-      addMessage(
-        "assistant",
-        `Completed: ${tasks[number - 1].text}`
-      );
-    }
-
+  if (lower.startsWith("/task edit ")) {
+    const number = Number(command.slice(11).trim());
+    editTaskByNumber(number);
     return true;
   }
 
   if (lower.startsWith("/task delete ")) {
     const number = Number(command.slice(13).trim());
+    removeTaskByNumber(number);
+    return true;
+  }
 
-    if (
-      !Number.isInteger(number) ||
-      number < 1 ||
-      number > tasks.length
-    ) {
-      addMessage("assistant", "That task number doesn't exist.");
-    } else {
-      const removed = tasks.splice(number - 1, 1)[0];
-      saveState();
-      renderTasks();
-      addMessage("assistant", `Deleted task: ${removed.text}`);
-    }
-
+  if (lower === "/task clear completed") {
+    clearCompletedTasks();
     return true;
   }
 

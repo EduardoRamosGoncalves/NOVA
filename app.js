@@ -1,12 +1,13 @@
 
-const MODEL_ID = "SmolLM2-360M-Instruct-q4f32_1-MLC";
+const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
 
 const KEYS = {
   memories: "nova_memories",
   conversation: "nova_conversation",
   display: "nova_display_history",
   notes: "nova_notes",
-  tasks: "nova_tasks"
+  tasks: "nova_tasks",
+  model: "nova_model_id"
 };
 
 const $ = id => document.getElementById(id);
@@ -55,6 +56,19 @@ let conversation = readStorage(KEYS.conversation, []);
 let displayHistory = readStorage(KEYS.display, []);
 let rawNotes = readStorage(KEYS.notes, []);
 let rawTasks = readStorage(KEYS.tasks, []);
+
+// Reset old AI conversation context after changing models.
+// Your saved notes, tasks and memories stay untouched.
+try {
+  const previousModel = localStorage.getItem(KEYS.model);
+
+  if (previousModel !== MODEL_ID) {
+    conversation = [];
+    localStorage.setItem(KEYS.model, MODEL_ID);
+  }
+} catch (error) {
+  console.error("Model storage error:", error);
+}
 
 /* ---------- DATA NORMALIZATION ---------- */
 
@@ -157,7 +171,7 @@ function renderMessage(sender, text) {
 
 function addMessage(sender, text) {
   displayHistory.push({ sender, text });
-  displayHistory = displayHistory.slice(-300);
+  displayHistory = displayHistory.slice(-100);
 
   const bubble = renderMessage(sender, text);
   saveState();
@@ -350,7 +364,6 @@ function renderTasks() {
 
 function addTask(text, priority = "normal", dueDate = "") {
   const cleanText = String(text).trim();
-
   if (!cleanText) return false;
 
   if (!["low", "normal", "high"].includes(priority)) {
@@ -368,7 +381,6 @@ function addTask(text, priority = "normal", dueDate = "") {
 
   saveState();
   renderTasks();
-
   return true;
 }
 
@@ -435,7 +447,6 @@ function deleteTask(id) {
   if (!task || !confirm(`Delete "${task.text}"?`)) return;
 
   tasks = tasks.filter(item => item.id !== id);
-
   saveState();
   renderTasks();
 }
@@ -504,7 +515,6 @@ function completeTask(number) {
   }
 
   task.done = true;
-
   saveState();
   renderTasks();
 
@@ -525,7 +535,6 @@ function reopenTask(number) {
   }
 
   task.done = false;
-
   saveState();
   renderTasks();
 
@@ -543,7 +552,6 @@ function removeTaskByNumber(number) {
   if (!confirm(`Delete "${task.text}"?`)) return;
 
   tasks.splice(number - 1, 1);
-
   saveState();
   renderTasks();
 
@@ -570,7 +578,6 @@ function clearCompletedTasks() {
   if (!confirm(`Delete all ${completed} completed tasks?`)) return;
 
   tasks = tasks.filter(task => !task.done);
-
   saveState();
   renderTasks();
 
@@ -681,7 +688,6 @@ function addNote(title, content) {
 
   saveState();
   renderNotes();
-
   return true;
 }
 
@@ -718,7 +724,6 @@ function deleteNote(id) {
   if (!note || !confirm(`Delete "${note.title}"?`)) return;
 
   notes = notes.filter(item => item.id !== id);
-
   saveState();
   renderNotes();
 }
@@ -738,20 +743,34 @@ noteSearch.addEventListener("input", renderNotes);
 /* ---------- AI CONTEXT ---------- */
 
 function getSystemPrompt() {
-  return `You are NOVA, a helpful personal AI assistant running locally.
-Answer clearly and naturally.
-Use simple language.
-Do not claim to access the internet or files unless a tool has provided the information.
+  return `You are NOVA, a personal AI assistant.
 
-Saved memories:
+Your job is to answer the user's actual question.
+
+RULES:
+- Answer the question directly.
+- Use clear, natural language.
+- Keep simple questions short.
+- Give detailed explanations when the user asks for them.
+- Do not invent personal information about the user.
+- Do not invent dates, events or facts.
+- If you do not know something, say so.
+- Do not repeat your introduction in every answer.
+- Do not describe yourself as a tour guide unless asked.
+- Do not produce random words or unrelated sentences.
+- Do not pretend to have internet access.
+- Use the conversation to understand follow-up questions.
+- You are NOVA. Do not claim to be another assistant.
+
+SAVED MEMORIES:
 ${memories.map(item => "- " + item).join("\n") || "No saved memories."}
 
-Saved notes:
+SAVED NOTES:
 ${notes.map((item, i) =>
   `${i + 1}. ${item.title}: ${item.content}`
 ).join("\n") || "No notes."}
 
-Tasks:
+TASKS:
 ${tasks.map((item, i) =>
   `${i + 1}. ${item.done ? "[Completed]" : "[Open]"} [${item.priority}] ${item.text}${item.dueDate ? " Due: " + item.dueDate : ""}`
 ).join("\n") || "No tasks."}
@@ -1008,10 +1027,8 @@ Other:
       addMessage("assistant", "That note number doesn't exist.");
     } else {
       const removed = notes.splice(number - 1, 1)[0];
-
       saveState();
       renderNotes();
-
       addMessage("assistant", `Deleted note: ${removed.title}`);
     }
 
@@ -1123,7 +1140,8 @@ async function loadAI() {
       "https://esm.run/@mlc-ai/web-llm"
     );
 
-    setStatus("LOADING LOCAL MODEL");
+    setStatus("DOWNLOADING QWEN 3B");
+    setProgress("Preparing the new local model...", 5);
 
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: report => {
@@ -1136,16 +1154,18 @@ async function loadAI() {
           report.text || "Loading model...",
           progress
         );
+
+        setStatus("LOADING QWEN 3B");
       }
     });
 
-    setProgress("AI model ready.", 100);
+    setProgress("Qwen 3B is ready.", 100);
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
     addMessage(
       "assistant",
-      "I'm ready. My local tools and memory are available."
+      "NOVA is ready. I'm now running on Qwen2.5-3B locally."
     );
 
   } catch (error) {
@@ -1158,7 +1178,7 @@ async function loadAI() {
 
     addMessage(
       "assistant",
-      `I couldn't load my AI model.\n${error.message}`
+      `I couldn't load the new AI model.\n${error.message}`
     );
 
     console.error(error);
@@ -1189,7 +1209,7 @@ async function sendMessage(text) {
     content: cleanText
   });
 
-  conversation = conversation.slice(-12);
+  conversation = conversation.slice(-10);
   saveState();
 
   sendButton.disabled = true;
@@ -1206,12 +1226,14 @@ async function sendMessage(text) {
         },
         ...conversation
       ],
-      temperature: 0.7,
-      max_tokens: 256
+      temperature: 0.6,
+      top_p: 0.9,
+      frequency_penalty: 0.2,
+      max_tokens: 384
     });
 
     const answer =
-      response.choices?.[0]?.message?.content ||
+      response.choices?.[0]?.message?.content?.trim() ||
       "I couldn't generate a response.";
 
     replyBubble.textContent = answer;
@@ -1221,7 +1243,7 @@ async function sendMessage(text) {
       content: answer
     });
 
-    conversation = conversation.slice(-12);
+    conversation = conversation.slice(-10);
 
     const lastMessage =
       displayHistory[displayHistory.length - 1];
@@ -1275,16 +1297,13 @@ renderTasks();
 renderNotes();
 restoreConversation();
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
+window.addEventListener("load", () => {
+  loadAI();
+
+  if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js")
       .catch(error => {
         console.error("Service worker error:", error);
       });
-  });
-}
-
-// Automatically load the AI when NOVA opens.
-window.addEventListener("load", () => {
-  loadAI();
+  }
 });

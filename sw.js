@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "nova-cache-v5";
+const CACHE_NAME = "nova-cache-v6";
 
 const FILES_TO_CACHE = [
   "./",
@@ -24,7 +24,8 @@ self.addEventListener("activate", event => {
       .then(names =>
         Promise.all(
           names
-            .filter(name => name !== CACHE_NAME)
+            .filter(name => name.startsWith("nova-cache-") &&
+              name !== CACHE_NAME)
             .map(name => caches.delete(name))
         )
       )
@@ -37,25 +38,43 @@ self.addEventListener("fetch", event => {
 
   if (request.method !== "GET") return;
 
+  const url = new URL(request.url);
+
+  if (url.origin !== self.location.origin) return;
+
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: "no-store" })
         .then(response => {
           if (response.ok) {
             const copy = response.clone();
-
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put("./index.html", copy);
-            });
+            caches.open(CACHE_NAME).then(cache =>
+              cache.put("./index.html", copy)
+            );
           }
-
           return response;
         })
-        .catch(async () => {
-          return await caches.match("./index.html");
-        })
+        .catch(() => caches.match("./index.html"))
     );
+    return;
+  }
 
+  const filename = url.pathname.split("/").pop();
+
+  if (["app.js", "style.css", "index.html"].includes(filename)) {
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache =>
+              cache.put(request, copy)
+            );
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
@@ -66,12 +85,10 @@ self.addEventListener("fetch", event => {
       return fetch(request).then(response => {
         if (response.ok) {
           const copy = response.clone();
-
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(request, copy);
-          });
+          caches.open(CACHE_NAME).then(cache =>
+            cache.put(request, copy)
+          );
         }
-
         return response;
       });
     })

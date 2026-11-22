@@ -163,3 +163,17 @@ function renderMemories() {
         memoryList.appendChild(item);
     });
 }
+
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js")
+            .then(() => {
+                document.getElementById("status").textContent =
+                    "LOCAL SYSTEM ONLINE";
+            })
+            .catch(error => {
+                console.error("Offline setup failed:", error);
+            });
+    });
+}

@@ -1,6 +1,15 @@
+
 const MODEL_ID = "Qwen3.5-2B-q4f16_1-MLC";
 const MODEL_NAME = "Qwen3.5-2B";
 const WEBLLM_VERSION = "0.2.88";
+
+// SAFER GENERATION SETTINGS
+const MAX_TOKENS = 128;
+const MAX_CONVERSATION_MESSAGES = 4;
+const MAX_MESSAGE_LENGTH = 1200;
+const MAX_MEMORIES_IN_CONTEXT = 5;
+const MAX_NOTES_IN_CONTEXT = 4;
+const MAX_TASKS_IN_CONTEXT = 8;
 
 const KEYS = {
   memories: "nova_memories",
@@ -41,6 +50,7 @@ const noteEmpty = $("noteEmpty");
 
 let engine = null;
 let loading = false;
+let generating = false;
 let currentFilter = "all";
 
 function readStorage(key, fallback) {
@@ -57,6 +67,12 @@ let conversation = readStorage(KEYS.conversation, []);
 let displayHistory = readStorage(KEYS.display, []);
 let rawNotes = readStorage(KEYS.notes, []);
 let rawTasks = readStorage(KEYS.tasks, []);
+
+if (!Array.isArray(memories)) memories = [];
+if (!Array.isArray(conversation)) conversation = [];
+if (!Array.isArray(displayHistory)) displayHistory = [];
+if (!Array.isArray(rawNotes)) rawNotes = [];
+if (!Array.isArray(rawTasks)) rawTasks = [];
 
 try {
   const previousModel = localStorage.getItem(KEYS.model);
@@ -737,38 +753,50 @@ noteSearch.addEventListener("input", renderNotes);
 
 /* ---------- AI CONTEXT ---------- */
 
+function shortenText(value, limit) {
+  return String(value ?? "").slice(0, limit);
+}
+
 function getSystemPrompt() {
+  const memoryContext = memories
+    .slice(-MAX_MEMORIES_IN_CONTEXT)
+    .map(item => "- " + shortenText(item, 180))
+    .join("\n");
+
+  const noteContext = notes
+    .slice(0, MAX_NOTES_IN_CONTEXT)
+    .map((item, i) =>
+      `${i + 1}. ${shortenText(item.title, 80)}: ${shortenText(item.content, 250)}`
+    )
+    .join("\n");
+
+  const taskContext = tasks
+    .slice(0, MAX_TASKS_IN_CONTEXT)
+    .map((item, i) =>
+      `${i + 1}. ${item.done ? "[Completed]" : "[Open]"} [${item.priority}] ${shortenText(item.text, 120)}${item.dueDate ? " Due: " + item.dueDate : ""}`
+    )
+    .join("\n");
+
   return `You are NOVA, a personal AI assistant.
 
-Your job is to answer the user's actual question.
-
-RULES:
-- Answer the question directly.
-- Use clear, natural language.
-- Keep simple questions short.
-- Give detailed explanations when the user asks for them.
-- Do not invent personal information about the user.
-- Do not invent dates, events or facts.
-- If you do not know something, say so.
-- Do not repeat your introduction in every answer.
-- Do not describe yourself as a tour guide unless asked.
-- Do not produce random words or unrelated sentences.
-- Do not pretend to have internet access.
-- Use the conversation to understand follow-up questions.
-- You are NOVA. Do not claim to be another assistant.
+Answer the user's actual question directly.
+Use clear, natural language.
+Keep simple answers short.
+Give details when requested.
+Do not invent personal information, dates, events or facts.
+If you do not know something, say so.
+Do not pretend to have internet access.
+Use recent conversation messages to understand follow-up questions.
+You are NOVA.
 
 SAVED MEMORIES:
-${memories.map(item => "- " + item).join("\n") || "No saved memories."}
+${memoryContext || "No saved memories."}
 
 SAVED NOTES:
-${notes.map((item, i) =>
-  `${i + 1}. ${item.title}: ${item.content}`
-).join("\n") || "No notes."}
+${noteContext || "No notes."}
 
 TASKS:
-${tasks.map((item, i) =>
-  `${i + 1}. ${item.done ? "[Completed]" : "[Open]"} [${item.priority}] ${item.text}${item.dueDate ? " Due: " + item.dueDate : ""}`
-).join("\n") || "No tasks."}
+${taskContext || "No tasks."}
 
 You can explain how to use your local tools.`;
 }
@@ -1183,9 +1211,28 @@ async function loadAI() {
   }
 }
 
+/* ---------- MESSAGE GENERATION ---------- */
+
+function prepareConversation() {
+  conversation = conversation
+    .filter(message =>
+      message &&
+      ["user", "assistant"].includes(message.role) &&
+      typeof message.content === "string"
+    )
+    .slice(-MAX_CONVERSATION_MESSAGES)
+    .map(message => ({
+      role: message.role,
+      content: shortenText(message.content, MAX_MESSAGE_LENGTH)
+    }));
+
+  return conversation;
+}
+
 async function sendMessage(text) {
   const cleanText = text.trim();
-  if (!cleanText) return;
+
+  if (!cleanText || generating) return;
 
   addMessage("user", cleanText);
 
@@ -1201,18 +1248,22 @@ async function sendMessage(text) {
 
   conversation.push({
     role: "user",
-    content: cleanText
+    content: shortenText(cleanText, MAX_MESSAGE_LENGTH)
   });
 
-  conversation = conversation.slice(-10);
+  prepareConversation();
   saveState();
 
+  generating = true;
   sendButton.disabled = true;
   messageInput.disabled = true;
 
   const replyBubble = addMessage("assistant", "Thinking...");
 
   try {
+    setStatus("GENERATING RESPONSE");
+    setProgress("NOVA is thinking...", 100);
+
     const response = await engine.chat.completions.create({
       messages: [
         {
@@ -1223,7 +1274,7 @@ async function sendMessage(text) {
       ],
       temperature: 0.4,
       top_p: 0.9,
-      max_tokens: 256
+      max_tokens: MAX_TOKENS
     });
 
     const answer =
@@ -1234,10 +1285,10 @@ async function sendMessage(text) {
 
     conversation.push({
       role: "assistant",
-      content: answer
+      content: shortenText(answer, MAX_MESSAGE_LENGTH)
     });
 
-    conversation = conversation.slice(-10);
+    prepareConversation();
 
     const lastMessage =
       displayHistory[displayHistory.length - 1];
@@ -1246,23 +1297,42 @@ async function sendMessage(text) {
       lastMessage.text = answer;
     }
 
+    setStatus("LOCAL AI READY");
+    setProgress(`${MODEL_NAME} is ready.`, 100);
+
     saveState();
 
   } catch (error) {
-    replyBubble.textContent =
+    const errorText =
       `Generation error: ${error.message}`;
+
+    replyBubble.textContent = errorText;
+
+    // Remove the unanswered user message from AI context.
+    // This prevents failed requests from accumulating.
+    conversation = conversation.filter(
+      message => message.role !== "user" ||
+        message.content !== shortenText(cleanText, MAX_MESSAGE_LENGTH)
+    );
 
     const lastMessage =
       displayHistory[displayHistory.length - 1];
 
     if (lastMessage) {
-      lastMessage.text = replyBubble.textContent;
+      lastMessage.text = errorText;
     }
 
+    setStatus("GENERATION ERROR");
+    setProgress(
+      "Try a shorter question. If Safari refreshes, do not repeatedly retry the same request.",
+      0
+    );
+
     saveState();
-    console.error(error);
+    console.error("Generation error:", error);
 
   } finally {
+    generating = false;
     sendButton.disabled = false;
     messageInput.disabled = false;
     messageInput.focus();
@@ -1278,7 +1348,7 @@ chatForm.addEventListener("submit", async event => {
   event.preventDefault();
 
   const text = messageInput.value.trim();
-  if (!text) return;
+  if (!text || generating) return;
 
   messageInput.value = "";
   await sendMessage(text);

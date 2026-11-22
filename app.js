@@ -1,179 +1,287 @@
+const MODEL_ID = "SmolLM2-360M-Instruct-q4f32_1-MLC";
 
-const chat = document.getElementById("chat");
-const form = document.getElementById("messageForm");
-const input = document.getElementById("messageInput");
-const memoryPanel = document.getElementById("memoryPanel");
-const memoryList = document.getElementById("memoryList");
+const loadButton = document.getElementById("loadModelButton");
+const clearButton = document.getElementById("clearButton");
+const chatForm = document.getElementById("chatForm");
+const messageInput = document.getElementById("messageInput");
+const sendButton = document.getElementById("sendButton");
+const chatMessages = document.getElementById("chatMessages");
+const statusText = document.getElementById("status");
+const progressText = document.getElementById("progressText");
+const progressBar = document.getElementById("progressBar");
 
-let memories = JSON.parse(
-    localStorage.getItem("nova_memories") || "[]"
+let engine = null;
+let loading = false;
+let conversation = [];
+
+const memories = JSON.parse(
+  localStorage.getItem("nova_memories") || "[]"
 );
 
 function saveMemories() {
-    localStorage.setItem(
-        "nova_memories",
-        JSON.stringify(memories)
+  localStorage.setItem("nova_memories", JSON.stringify(memories));
+}
+
+function setStatus(text) {
+  statusText.textContent = text;
+}
+
+function setProgress(text, percentage) {
+  progressText.textContent = text;
+  progressBar.style.width = `${percentage}%`;
+}
+
+function addMessage(sender, text) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `message ${sender}`;
+
+  const name = document.createElement("div");
+  name.className = "sender";
+  name.textContent = sender === "user" ? "YOU" : "NOVA";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+
+  wrapper.appendChild(name);
+  wrapper.appendChild(bubble);
+  chatMessages.appendChild(wrapper);
+
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  return bubble;
+}
+
+function getSystemPrompt() {
+  let memoryText = memories.length
+    ? memories.map(item => `- ${item}`).join("\n")
+    : "No saved memories.";
+
+  return `You are NOVA, a helpful personal AI assistant.
+You run locally on the user's device.
+Answer clearly and naturally.
+Use simple language.
+Do not pretend to have access to the internet or the user's files.
+Your saved memories are:
+
+${memoryText}`;
+}
+
+function handleCommand(text) {
+  const command = text.trim();
+  const lower = command.toLowerCase();
+
+  if (lower === "/help") {
+    addMessage("assistant",
+      "Commands:\n/remember [information]\n/memories\n/forget [information]\n/clear\n/help"
     );
+    return true;
+  }
+
+  if (lower.startsWith("/remember ")) {
+    const memory = command.slice(10).trim();
+
+    if (!memory) {
+      addMessage("assistant", "Write something after /remember.");
+      return true;
+    }
+
+    memories.push(memory);
+    saveMemories();
+    addMessage("assistant", "Saved to local memory.");
+    return true;
+  }
+
+  if (lower === "/memories") {
+    addMessage(
+      "assistant",
+      memories.length
+        ? memories.map((item, index) => `${index + 1}. ${item}`).join("\n")
+        : "Your memory is empty."
+    );
+    return true;
+  }
+
+  if (lower.startsWith("/forget ")) {
+    const target = command.slice(8).trim().toLowerCase();
+    const index = memories.findIndex(
+      item => item.toLowerCase().includes(target)
+    );
+
+    if (index === -1) {
+      addMessage("assistant", "I couldn't find that memory.");
+    } else {
+      memories.splice(index, 1);
+      saveMemories();
+      addMessage("assistant", "Memory deleted.");
+    }
+
+    return true;
+  }
+
+  if (lower === "/clear") {
+    conversation = [];
+    chatMessages.innerHTML = "";
+    addMessage("assistant", "Conversation cleared.");
+    return true;
+  }
+
+  return false;
 }
 
-function addMessage(text, isUser = false) {
-    const welcome = chat.querySelector(".welcome");
-    if (welcome) welcome.remove();
+async function loadAI() {
+  if (loading || engine) return;
 
-    const message = document.createElement("div");
-    message.className = "message " +
-        (isUser ? "user" : "assistant");
+  loading = true;
+  loadButton.disabled = true;
+  loadButton.textContent = "LOADING";
 
-    message.textContent = text;
-    chat.appendChild(message);
-
-    chat.scrollTop = chat.scrollHeight;
-}
-
-function respond(text) {
-    const command = text.trim();
-    const lower = command.toLowerCase();
-
-    if (lower === "/help") {
-        return `NOVA COMMANDS
-
-/help
-/remember [information]
-/memories
-/forget [information]
-/clear`;
+  try {
+    if (!navigator.gpu) {
+      throw new Error(
+        "WebGPU is unavailable in this Safari session. Update iOS and try again."
+      );
     }
 
-    if (lower.startsWith("/remember ")) {
-        const memory = command.substring(10).trim();
+    setStatus("CHECKING DEVICE");
+    setProgress("Checking graphics support...", 2);
 
-        if (!memory) return "Please provide something to remember.";
+    const adapter = await navigator.gpu.requestAdapter();
 
-        memories.push(memory);
-        saveMemories();
-
-        return "Memory saved locally.";
+    if (!adapter) {
+      throw new Error("Safari could not access a compatible graphics adapter.");
     }
 
-    if (lower === "/memories") {
-        if (memories.length === 0) {
-            return "Your memory is empty.";
-        }
+    setStatus("DOWNLOADING AI ENGINE");
+    setProgress("Preparing local AI engine...", 5);
 
-        return memories.map(
-            (memory, index) => `${index + 1}. ${memory}`
-        ).join("\n");
-    }
+    const webllm = await import("https://esm.run/@mlc-ai/web-llm");
 
-    if (lower.startsWith("/forget ")) {
-        const target = command.substring(8).toLowerCase();
+    setStatus("LOADING LOCAL MODEL");
 
-        const previousLength = memories.length;
-
-        memories = memories.filter(
-            memory => !memory.toLowerCase().includes(target)
+    engine = await webllm.CreateMLCEngine(MODEL_ID, {
+      initProgressCallback: (report) => {
+        const progress = Math.max(
+          5,
+          Math.min(100, Math.round((report.progress || 0) * 100))
         );
 
-        saveMemories();
+        setProgress(
+          report.text || "Loading model...",
+          progress
+        );
+      }
+    });
 
-        return memories.length === previousLength
-            ? "No matching memory found."
-            : "Matching memories deleted.";
-    }
+    setProgress("AI model ready.", 100);
+    setStatus("LOCAL AI READY");
+    loadButton.textContent = "AI READY";
 
-    if (lower === "/clear") {
-        chat.innerHTML = "";
-        return "Conversation cleared.";
-    }
+    addMessage(
+      "assistant",
+      "My local AI model is ready. You can now talk to me."
+    );
 
-    return `I received your message:
+  } catch (error) {
+    engine = null;
+    setStatus("AI NOT LOADED");
+    setProgress(`Error: ${error.message}`, 0);
+    loadButton.disabled = false;
+    loadButton.textContent = "TRY AGAIN";
+    addMessage("assistant", `I couldn't load my AI model.\n${error.message}`);
+    console.error(error);
 
-"${command}"
-
-My AI model has not been connected yet.`;
+  } finally {
+    loading = false;
+  }
 }
 
-form.addEventListener("submit", event => {
-    event.preventDefault();
+async function sendMessage(text) {
+  const cleanText = text.trim();
 
-    const text = input.value.trim();
-    if (!text) return;
+  if (!cleanText) return;
 
-    addMessage(text, true);
-    input.value = "";
+  addMessage("user", cleanText);
 
-    const answer = respond(text);
+  if (handleCommand(cleanText)) return;
 
-    addMessage(answer);
+  if (!engine) {
+    addMessage(
+      "assistant",
+      "My AI model isn't loaded yet. Tap LOAD AI first."
+    );
+    return;
+  }
+
+  conversation.push({
+    role: "user",
+    content: cleanText
+  });
+
+  sendButton.disabled = true;
+  messageInput.disabled = true;
+
+  const replyBubble = addMessage("assistant", "Thinking...");
+
+  try {
+    const messages = [
+      {
+        role: "system",
+        content: getSystemPrompt()
+      },
+      ...conversation
+    ];
+
+    const response = await engine.chat.completions.create({
+      messages,
+      temperature: 0.7,
+      max_tokens: 256
+    });
+
+    const answer =
+      response.choices?.[0]?.message?.content ||
+      "I couldn't generate a response.";
+
+    replyBubble.textContent = answer;
+
+    conversation.push({
+      role: "assistant",
+      content: answer
+    });
+
+  } catch (error) {
+    replyBubble.textContent = `Generation error: ${error.message}`;
+    console.error(error);
+
+  } finally {
+    sendButton.disabled = false;
+    messageInput.disabled = false;
+    messageInput.focus();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+}
+
+loadButton.addEventListener("click", loadAI);
+
+chatForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const text = messageInput.value.trim();
+  if (!text) return;
+
+  messageInput.value = "";
+  await sendMessage(text);
 });
 
-document.getElementById("clearButton")
-    .addEventListener("click", () => {
-        chat.innerHTML = `
-            <div class="welcome">
-                <h2>How can I help?</h2>
-                <p>Your personal assistant.</p>
-            </div>
-        `;
-    });
-
-document.getElementById("helpButton")
-    .addEventListener("click", () => {
-        addMessage("/help", true);
-        addMessage(respond("/help"));
-    });
-
-document.getElementById("memoryButton")
-    .addEventListener("click", () => {
-        renderMemories();
-        memoryPanel.classList.remove("hidden");
-    });
-
-document.getElementById("closeMemory")
-    .addEventListener("click", () => {
-        memoryPanel.classList.add("hidden");
-    });
-
-function renderMemories() {
-    memoryList.innerHTML = "";
-
-    if (memories.length === 0) {
-        memoryList.textContent = "No saved memories.";
-        return;
-    }
-
-    memories.forEach((memory, index) => {
-        const item = document.createElement("div");
-        item.className = "memory-item";
-
-        const text = document.createElement("span");
-        text.textContent = memory;
-
-        const remove = document.createElement("button");
-        remove.textContent = "DELETE";
-
-        remove.addEventListener("click", () => {
-            memories.splice(index, 1);
-            saveMemories();
-            renderMemories();
-        });
-
-        item.appendChild(text);
-        item.appendChild(remove);
-        memoryList.appendChild(item);
-    });
-}
-
+clearButton.addEventListener("click", () => {
+  conversation = [];
+  chatMessages.innerHTML = "";
+  addMessage("assistant", "Conversation cleared.");
+});
 
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js")
-            .then(() => {
-                document.getElementById("status").textContent =
-                    "LOCAL SYSTEM ONLINE";
-            })
-            .catch(error => {
-                console.error("Offline setup failed:", error);
-            });
-    });
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .catch(error => console.error("Service worker error:", error));
+  });
 }

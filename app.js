@@ -1,3 +1,4 @@
+
 const MODEL_ID = "SmolLM2-360M-Instruct-q4f32_1-MLC";
 
 const KEYS = {
@@ -8,18 +9,29 @@ const KEYS = {
   tasks: "nova_tasks"
 };
 
-const loadButton = document.getElementById("loadModelButton");
-const clearButton = document.getElementById("clearButton");
-const chatForm = document.getElementById("chatForm");
-const messageInput = document.getElementById("messageInput");
-const sendButton = document.getElementById("sendButton");
-const chatMessages = document.getElementById("chatMessages");
-const statusText = document.getElementById("status");
-const progressText = document.getElementById("progressText");
-const progressBar = document.getElementById("progressBar");
+const $ = id => document.getElementById(id);
+
+const loadButton = $("loadModelButton");
+const clearButton = $("clearButton");
+const chatForm = $("chatForm");
+const messageInput = $("messageInput");
+const sendButton = $("sendButton");
+const chatMessages = $("chatMessages");
+const statusText = $("status");
+const progressText = $("progressText");
+const progressBar = $("progressBar");
+
+const taskForm = $("taskForm");
+const taskInput = $("taskInput");
+const taskPriority = $("taskPriority");
+const taskDueDate = $("taskDueDate");
+const taskList = $("taskList");
+const taskSummary = $("taskSummary");
+const taskEmpty = $("taskEmpty");
 
 let engine = null;
 let loading = false;
+let currentFilter = "all";
 
 function readStorage(key, fallback) {
   try {
@@ -34,14 +46,56 @@ let memories = readStorage(KEYS.memories, []);
 let conversation = readStorage(KEYS.conversation, []);
 let displayHistory = readStorage(KEYS.display, []);
 let notes = readStorage(KEYS.notes, []);
-let tasks = readStorage(KEYS.tasks, []);
+
+/* Repair and standardize old task data. */
+
+function makeTask(item, index) {
+  if (typeof item === "string") {
+    return {
+      id: `task-${Date.now()}-${index}`,
+      text: item,
+      done: false,
+      priority: "normal",
+      dueDate: "",
+      createdAt: Date.now()
+    };
+  }
+
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const text = String(item.text ?? item.title ?? "").trim();
+
+  if (!text) return null;
+
+  return {
+    id: String(item.id || `task-${Date.now()}-${index}`),
+    text,
+    done: item.done === true,
+    priority: ["low", "normal", "high"].includes(item.priority)
+      ? item.priority
+      : "normal",
+    dueDate: typeof item.dueDate === "string" ? item.dueDate : "",
+    createdAt: Number(item.createdAt) || Date.now()
+  };
+}
+
+let tasks = readStorage(KEYS.tasks, [])
+  .map(makeTask)
+  .filter(Boolean);
 
 function saveState() {
-  localStorage.setItem(KEYS.memories, JSON.stringify(memories));
-  localStorage.setItem(KEYS.conversation, JSON.stringify(conversation));
-  localStorage.setItem(KEYS.display, JSON.stringify(displayHistory));
-  localStorage.setItem(KEYS.notes, JSON.stringify(notes));
-  localStorage.setItem(KEYS.tasks, JSON.stringify(tasks));
+  try {
+    localStorage.setItem(KEYS.memories, JSON.stringify(memories));
+    localStorage.setItem(KEYS.conversation, JSON.stringify(conversation));
+    localStorage.setItem(KEYS.display, JSON.stringify(displayHistory));
+    localStorage.setItem(KEYS.notes, JSON.stringify(notes));
+    localStorage.setItem(KEYS.tasks, JSON.stringify(tasks));
+  } catch (error) {
+    console.error("Storage error:", error);
+    setStatus("LOCAL STORAGE ERROR");
+  }
 }
 
 function setStatus(text) {
@@ -65,11 +119,10 @@ function renderMessage(sender, text) {
   bubble.className = "bubble";
   bubble.textContent = text;
 
-  wrapper.appendChild(name);
-  wrapper.appendChild(bubble);
+  wrapper.append(name, bubble);
   chatMessages.appendChild(wrapper);
-
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
   return bubble;
 }
 
@@ -79,6 +132,7 @@ function addMessage(sender, text) {
 
   const bubble = renderMessage(sender, text);
   saveState();
+
   return bubble;
 }
 
@@ -104,6 +158,218 @@ function restoreConversation() {
   }
 }
 
+/* ---------- VISUAL TASK MANAGER ---------- */
+
+function updateTaskSummary() {
+  const completed = tasks.filter(task => task.done).length;
+  const open = tasks.length - completed;
+
+  taskSummary.textContent =
+    `${open} open · ${completed} completed · ${tasks.length} total`;
+}
+
+function formatDueDate(date) {
+  if (!date) return "";
+
+  const parsed = new Date(`${date}T00:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function renderTasks() {
+  taskList.innerHTML = "";
+
+  updateTaskSummary();
+
+  const visibleTasks = tasks.filter(task => {
+    if (currentFilter === "open") return !task.done;
+    if (currentFilter === "done") return task.done;
+    return true;
+  });
+
+  taskEmpty.hidden = visibleTasks.length > 0;
+
+  if (!tasks.length) {
+    taskEmpty.textContent = "No tasks yet. Add your first task above.";
+  } else if (!visibleTasks.length) {
+    taskEmpty.textContent = "No tasks in this category.";
+  }
+
+  visibleTasks.forEach(task => {
+    const card = document.createElement("article");
+    card.className = `task-card ${task.done ? "completed" : ""}`;
+
+    const check = document.createElement("button");
+    check.type = "button";
+    check.className = "task-check";
+    check.textContent = task.done ? "✓" : "";
+    check.setAttribute(
+      "aria-label",
+      task.done ? "Mark task as open" : "Complete task"
+    );
+
+    check.addEventListener("click", () => {
+      task.done = !task.done;
+      saveState();
+      renderTasks();
+    });
+
+    const content = document.createElement("div");
+    content.className = "task-content";
+
+    const title = document.createElement("div");
+    title.className = "task-title";
+    title.textContent = task.text;
+
+    const details = document.createElement("div");
+    details.className = "task-details";
+
+    const priority = document.createElement("span");
+    priority.className = `priority priority-${task.priority}`;
+    priority.textContent = `${task.priority} priority`;
+
+    details.appendChild(priority);
+
+    if (task.dueDate) {
+      const due = document.createElement("span");
+      due.className = "task-due";
+      due.textContent = `Due: ${formatDueDate(task.dueDate)}`;
+      details.appendChild(due);
+    }
+
+    content.append(title, details);
+
+    const actions = document.createElement("div");
+    actions.className = "task-actions";
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "EDIT";
+    edit.addEventListener("click", () => editTask(task.id));
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "DELETE";
+    remove.addEventListener("click", () => deleteTask(task.id));
+
+    actions.append(edit, remove);
+    card.append(check, content, actions);
+    taskList.appendChild(card);
+  });
+}
+
+function addTask(text, priority = "normal", dueDate = "") {
+  const cleanText = text.trim();
+
+  if (!cleanText) return false;
+
+  tasks.push({
+    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    text: cleanText,
+    done: false,
+    priority,
+    dueDate,
+    createdAt: Date.now()
+  });
+
+  saveState();
+  renderTasks();
+
+  return true;
+}
+
+function editTask(id) {
+  const task = tasks.find(item => item.id === id);
+  if (!task) return;
+
+  const newText = prompt("Edit task:", task.text);
+
+  if (newText === null) return;
+
+  if (!newText.trim()) {
+    alert("A task needs a name.");
+    return;
+  }
+
+  task.text = newText.trim();
+
+  const newPriority = prompt(
+    "Priority: low, normal or high",
+    task.priority
+  );
+
+  if (newPriority !== null) {
+    const value = newPriority.trim().toLowerCase();
+
+    if (["low", "normal", "high"].includes(value)) {
+      task.priority = value;
+    }
+  }
+
+  const newDate = prompt(
+    "Due date in YYYY-MM-DD format. Leave empty for no due date.",
+    task.dueDate
+  );
+
+  if (newDate !== null) {
+    task.dueDate = /^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())
+      ? newDate.trim()
+      : "";
+  }
+
+  saveState();
+  renderTasks();
+}
+
+function deleteTask(id) {
+  const task = tasks.find(item => item.id === id);
+  if (!task) return;
+
+  if (!confirm(`Delete "${task.text}"?`)) return;
+
+  tasks = tasks.filter(item => item.id !== id);
+
+  saveState();
+  renderTasks();
+}
+
+taskForm.addEventListener("submit", event => {
+  event.preventDefault();
+
+  const added = addTask(
+    taskInput.value,
+    taskPriority.value,
+    taskDueDate.value
+  );
+
+  if (added) {
+    taskInput.value = "";
+    taskDueDate.value = "";
+    taskPriority.value = "normal";
+    taskInput.focus();
+  }
+});
+
+document.querySelectorAll(".task-filter").forEach(button => {
+  button.addEventListener("click", () => {
+    currentFilter = button.dataset.filter;
+
+    document.querySelectorAll(".task-filter").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+
+    renderTasks();
+  });
+});
+
+/* ---------- AI CONTEXT ---------- */
+
 function getSystemPrompt() {
   return `You are NOVA, a helpful personal AI assistant running locally.
 Answer clearly and naturally.
@@ -117,7 +383,9 @@ Saved notes:
 ${notes.map((item, i) => `${i + 1}. ${item}`).join("\n") || "No notes."}
 
 Tasks:
-${tasks.map((item, i) => `${i + 1}. ${item.done ? "[Completed]" : "[Open]"} ${item.text}`).join("\n") || "No tasks."}
+${tasks.map((item, i) =>
+  `${i + 1}. ${item.done ? "[Completed]" : "[Open]"} [${item.priority}] ${item.text}${item.dueDate ? " Due: " + item.dueDate : ""}`
+).join("\n") || "No tasks."}
 
 You can explain how to use your local tools.`;
 }
@@ -125,23 +393,48 @@ You can explain how to use your local tools.`;
 /* ---------- SAFE CALCULATOR ---------- */
 
 function calculate(expression) {
-  const tokens = expression.match(
-    /\s*(?:(\d+(?:\.\d*)?|\.\d+)|([+\-*/()%]))/g
-  );
+  const tokens = [];
+  let i = 0;
 
-  if (!tokens || tokens.join("").replace(/\s/g, "") !== expression.replace(/\s/g, "")) {
-    throw new Error("Use numbers, +, -, *, /, %, and parentheses.");
+  while (i < expression.length) {
+    const char = expression[i];
+
+    if (/\s/.test(char)) {
+      i++;
+      continue;
+    }
+
+    const remaining = expression.slice(i);
+    const numberMatch = remaining.match(/^(?:\d+\.?\d*|\.\d+)/);
+
+    if (numberMatch) {
+      tokens.push(numberMatch[0]);
+      i += numberMatch[0].length;
+      continue;
+    }
+
+    if ("+-*/%()".includes(char)) {
+      tokens.push(char);
+      i++;
+      continue;
+    }
+
+    throw new Error(`Invalid character: ${char}`);
   }
 
-  const values = tokens.map(token => token.trim());
+  if (!tokens.length) {
+    throw new Error("Enter a calculation.");
+  }
+
   let position = 0;
 
   function parseExpression() {
     let value = parseTerm();
 
-    while (values[position] === "+" || values[position] === "-") {
-      const operator = values[position++];
+    while (tokens[position] === "+" || tokens[position] === "-") {
+      const operator = tokens[position++];
       const right = parseTerm();
+
       value = operator === "+" ? value + right : value - right;
     }
 
@@ -152,11 +445,11 @@ function calculate(expression) {
     let value = parseFactor();
 
     while (
-      values[position] === "*" ||
-      values[position] === "/" ||
-      values[position] === "%"
+      tokens[position] === "*" ||
+      tokens[position] === "/" ||
+      tokens[position] === "%"
     ) {
-      const operator = values[position++];
+      const operator = tokens[position++];
       const right = parseFactor();
 
       if ((operator === "/" || operator === "%") && right === 0) {
@@ -172,40 +465,44 @@ function calculate(expression) {
   }
 
   function parseFactor() {
-    const token = values[position++];
+    const token = tokens[position];
 
-    if (token === "+") return parseFactor();
-    if (token === "-") return -parseFactor();
+    if (token === "+" || token === "-") {
+      position++;
+      const value = parseFactor();
+      return token === "-" ? -value : value;
+    }
 
     if (token === "(") {
+      position++;
       const value = parseExpression();
 
-      if (values[position++] !== ")") {
+      if (tokens[position] !== ")") {
         throw new Error("Missing closing parenthesis.");
       }
 
+      position++;
       return value;
     }
 
-    const number = Number(token);
-
-    if (!Number.isFinite(number)) {
+    if (token === undefined || !/^(?:\d+\.?\d*|\.\d+)$/.test(token)) {
       throw new Error("Invalid calculation.");
     }
 
-    return number;
+    position++;
+    return Number(token);
   }
 
   const result = parseExpression();
 
-  if (position !== values.length || !Number.isFinite(result)) {
+  if (position !== tokens.length || !Number.isFinite(result)) {
     throw new Error("Invalid calculation.");
   }
 
   return Number(result.toPrecision(12)).toString();
 }
 
-/* ---------- LOCAL TOOLS ---------- */
+/* ---------- LOCAL COMMANDS ---------- */
 
 function handleCommand(text) {
   const command = text.trim();
@@ -256,18 +553,16 @@ Other:
 
     if (!memory) {
       addMessage("assistant", "Write something after /remember.");
-      return true;
+    } else {
+      memories.push(memory);
+      saveState();
+      addMessage("assistant", "Saved to local memory.");
     }
-
-    memories.push(memory);
-    saveState();
-    addMessage("assistant", "Saved to local memory.");
     return true;
   }
 
   if (lower === "/memories") {
-    addMessage(
-      "assistant",
+    addMessage("assistant",
       memories.length
         ? memories.map((item, i) => `${i + 1}. ${item}`).join("\n")
         : "Your memory is empty."
@@ -306,8 +601,7 @@ Other:
   }
 
   if (lower === "/notes") {
-    addMessage(
-      "assistant",
+    addMessage("assistant",
       notes.length
         ? notes.map((note, i) => `${i + 1}. ${note}`).join("\n")
         : "You have no saved notes."
@@ -334,22 +628,22 @@ Other:
     if (!task) {
       addMessage("assistant", "Write something after /task add.");
     } else {
-      tasks.push({ text: task, done: false });
-      saveState();
+      addTask(task);
       addMessage("assistant", "Task added.");
     }
     return true;
   }
 
   if (lower === "/tasks") {
-    addMessage(
-      "assistant",
-      tasks.length
-        ? tasks.map((task, i) =>
-            `${i + 1}. ${task.done ? "[DONE]" : "[OPEN]"} ${task.text}`
-          ).join("\n")
-        : "Your task list is empty."
-    );
+    if (!tasks.length) {
+      addMessage("assistant", "Your task list is empty.");
+    } else {
+      const output = tasks.map((task, i) =>
+        `${i + 1}. ${task.done ? "[DONE]" : "[OPEN]"} [${task.priority}] ${task.text}${task.dueDate ? " | Due: " + task.dueDate : ""}`
+      ).join("\n");
+
+      addMessage("assistant", `ALL TASKS (${tasks.length})\n\n${output}`);
+    }
     return true;
   }
 
@@ -361,6 +655,7 @@ Other:
     } else {
       tasks[number - 1].done = true;
       saveState();
+      renderTasks();
       addMessage("assistant", `Completed: ${tasks[number - 1].text}`);
     }
     return true;
@@ -374,6 +669,7 @@ Other:
     } else {
       const removed = tasks.splice(number - 1, 1)[0];
       saveState();
+      renderTasks();
       addMessage("assistant", `Deleted task: ${removed.text}`);
     }
     return true;
@@ -383,6 +679,7 @@ Other:
     conversation = [];
     displayHistory = [];
     saveState();
+
     chatMessages.innerHTML = "";
     addMessage("assistant", "Conversation cleared. Your notes and memories are safe.");
     return true;
@@ -459,7 +756,6 @@ async function sendMessage(text) {
 
   addMessage("user", cleanText);
 
-  // Local commands run without sending anything to the AI model.
   if (handleCommand(cleanText)) return;
 
   if (!engine) {
@@ -540,6 +836,10 @@ clearButton.addEventListener("click", () => {
   addMessage("assistant", "Conversation cleared. Your notes and memories are safe.");
 });
 
+/* ---------- STARTUP ---------- */
+
+saveState();
+renderTasks();
 restoreConversation();
 
 if ("serviceWorker" in navigator) {

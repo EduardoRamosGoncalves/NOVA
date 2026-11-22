@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,6 +13,7 @@
 </head>
 <body>
   <main class="app">
+
     <header class="header">
       <div class="brand">
         <div class="logo">N</div>
@@ -27,6 +29,57 @@
       </div>
     </header>
 
+    <!-- TASK MANAGER -->
+    <section class="task-panel">
+      <div class="task-heading">
+        <div>
+          <h2>MY TASKS</h2>
+          <p id="taskSummary">0 open · 0 completed</p>
+        </div>
+        <span class="task-icon">✓</span>
+      </div>
+
+      <form id="taskForm" class="task-form">
+        <input
+          id="taskInput"
+          type="text"
+          placeholder="What do you need to do?"
+          maxlength="180"
+          required
+        >
+
+        <div class="task-options">
+          <select id="taskPriority" aria-label="Task priority">
+            <option value="normal">Normal priority</option>
+            <option value="high">High priority</option>
+            <option value="low">Low priority</option>
+          </select>
+
+          <input id="taskDueDate" type="date" aria-label="Due date">
+
+          <button type="submit" class="task-add-button">ADD TASK</button>
+        </div>
+      </form>
+
+      <div class="task-filters">
+        <button type="button" class="task-filter active" data-filter="all">ALL</button>
+        <button type="button" class="task-filter" data-filter="open">OPEN</button>
+        <button type="button" class="task-filter" data-filter="done">COMPLETED</button>
+      </div>
+
+      <div id="taskList" class="task-list"></div>
+      <p id="taskEmpty" class="task-empty">No tasks yet. Add your first task above.</p>
+    </section>
+
+    <!-- AI PROGRESS -->
+    <div id="progressArea" class="progress-area">
+      <div id="progressText">AI model not loaded</div>
+      <div class="progress-track">
+        <div id="progressBar"></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
     <section id="chatMessages" class="messages">
       <div class="message assistant">
         <div class="sender">NOVA</div>
@@ -35,13 +88,6 @@
         </div>
       </div>
     </section>
-
-    <div id="progressArea" class="progress-area">
-      <div id="progressText">AI model not loaded</div>
-      <div class="progress-track">
-        <div id="progressBar"></div>
-      </div>
-    </div>
 
     <form id="chatForm" class="composer">
       <input
@@ -58,6 +104,7 @@
       <span>PRIVATE BY DESIGN</span>
       <span>RUNNING LOCALLY</span>
     </footer>
+
   </main>
 
   <script type="module" src="./app.js"></script>

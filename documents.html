@@ -2,324 +2,417 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NOVA Document Reader</title>
-<style>
-* {
-  box-sizing: border-box;
-}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>NOVA Document Reader</title>
 
-body {
-  margin: 0;
-  padding: 22px;
-  background: #080808;
-  color: #f2f2f2;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-main {
-  width: min(100%, 760px);
-  margin: 0 auto;
-}
-
-h1 {
-  color: #ff3030;
-  margin-bottom: 6px;
-}
-
-.subtitle {
-  color: #999;
-  margin-top: 0;
-}
-
-.panel {
-  background: #151515;
-  border: 1px solid #303030;
-  border-radius: 16px;
-  padding: 18px;
-  margin-top: 18px;
-}
-
-input[type="file"] {
-  width: 100%;
-  padding: 14px;
-  background: #202020;
-  color: white;
-  border: 1px solid #444;
-  border-radius: 10px;
-}
-
-button {
-  width: 100%;
-  padding: 13px;
-  margin-top: 12px;
-  border: 0;
-  border-radius: 10px;
-  background: #e32636;
-  color: white;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-button.secondary {
-  background: #292929;
-  border: 1px solid #444;
-}
-
-button:disabled {
-  opacity: 0.5;
-}
-
-#status {
-  color: #aaa;
-  margin-top: 14px;
-  line-height: 1.5;
-}
-
-#output {
-  width: 100%;
-  min-height: 300px;
-  resize: vertical;
-  padding: 14px;
-  margin-top: 12px;
-  background: #0d0d0d;
-  color: #eee;
-  border: 1px solid #393939;
-  border-radius: 10px;
-  font: 14px/1.6 monospace;
-}
-
-#output:focus {
-  outline: 1px solid #e32636;
-}
-
-.small {
-  color: #888;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-</style>
-</head>
-<body>
-
-<main>
-  <h1>NOVA Document Reader</h1>
-  <p class="subtitle">Extract text from your documents.</p>
-
-  <section class="panel">
-    <input
-      id="fileInput"
-      type="file"
-      accept=".txt,.pdf,.docx"
-    >
-
-    <button id="readButton">READ DOCUMENT</button>
-
-    <p id="status">Choose a TXT, PDF or DOCX file.</p>
-    <p class="small">
-      Your document is processed in your browser.
-      The document contents are not uploaded to a server.
-    </p>
-  </section>
-
-  <section class="panel">
-    <label for="output">Extracted text</label>
-
-    <textarea
-      id="output"
-      placeholder="Your document text will appear here..."
-    ></textarea>
-
-    <button id="copyButton">COPY TEXT FOR NOVA</button>
-    <button id="downloadButton" class="secondary">
-      SAVE EXTRACTED TEXT
-    </button>
-  </section>
-</main>
-
-<script>
-const fileInput = document.getElementById("fileInput");
-const readButton = document.getElementById("readButton");
-const copyButton = document.getElementById("copyButton");
-const downloadButton = document.getElementById("downloadButton");
-const output = document.getElementById("output");
-const status = document.getElementById("status");
-
-const PDF_VERSION = "3.11.174";
-const MAMMOTH_VERSION = "1.8.0";
-
-let pdfLibraryPromise;
-let mammothLibraryPromise;
-
-function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = url;
-    script.onload = resolve;
-    script.onerror = () => reject(
-      new Error("Could not load document library. Check your internet connection.")
-    );
-    document.head.appendChild(script);
-  });
-}
-
-async function loadPDFLibrary() {
-  if (!pdfLibraryPromise) {
-    pdfLibraryPromise = loadScript(
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDF_VERSION}/pdf.min.js`
-    ).then(() => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDF_VERSION}/pdf.worker.min.js`;
-      return pdfjsLib;
-    });
-  }
-
-  return pdfLibraryPromise;
-}
-
-async function loadMammothLibrary() {
-  if (!mammothLibraryPromise) {
-    mammothLibraryPromise = loadScript(
-      `https://cdnjs.cloudflare.com/ajax/libs/mammoth/${MAMMOTH_VERSION}/mammoth.browser.min.js`
-    ).then(() => mammoth);
-  }
-
-  return mammothLibraryPromise;
-}
-
-async function readTXT(file) {
-  return await file.text();
-}
-
-async function readPDF(file) {
-  const pdfjs = await loadPDFLibrary();
-  const data = await file.arrayBuffer();
-
-  const pdf = await pdfjs.getDocument({
-    data
-  }).promise;
-
-  let pages = [];
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    status.textContent =
-      `Reading PDF page ${pageNumber} of ${pdf.numPages}...`;
-
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-
-    const pageText = content.items
-      .map(item => item.str)
-      .join(" ");
-
-    pages.push(pageText);
-  }
-
-  return pages.join("\n\n");
-}
-
-async function readDOCX(file) {
-  const mammothLibrary = await loadMammothLibrary();
-  const data = await file.arrayBuffer();
-
-  const result = await mammothLibrary.extractRawText({
-    arrayBuffer: data
-  });
-
-  return result.value;
-}
-
-async function readDocument(file) {
-  const extension = file.name.split(".").pop().toLowerCase();
-
-  if (extension === "txt") {
-    return await readTXT(file);
-  }
-
-  if (extension === "pdf") {
-    return await readPDF(file);
-  }
-
-  if (extension === "docx") {
-    return await readDOCX(file);
-  }
-
-  throw new Error("Unsupported file format.");
-}
-
-readButton.addEventListener("click", async () => {
-  const file = fileInput.files[0];
-
-  if (!file) {
-    status.textContent = "Choose a document first.";
-    return;
-  }
-
-  readButton.disabled = true;
-  output.value = "";
-
-  try {
-    status.textContent = "Reading document...";
-
-    const text = await readDocument(file);
-
-    if (!text.trim()) {
-      throw new Error(
-        "No readable text found. This PDF might contain scanned images."
-      );
+  <style>
+    * {
+      box-sizing: border-box;
     }
 
-    output.value = text;
+    body {
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      background: #080808;
+      color: #f2f2f2;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-    status.textContent =
-      `Finished. ${text.length.toLocaleString()} characters extracted.`;
+    .app {
+      width: min(100%, 700px);
+      margin: 0 auto;
+    }
 
-  } catch (error) {
-    status.textContent = error.message;
-  } finally {
-    readButton.disabled = false;
-  }
-});
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
 
-copyButton.addEventListener("click", async () => {
-  if (!output.value.trim()) {
-    status.textContent = "There is no extracted text to copy.";
-    return;
-  }
+    h1 {
+      margin: 0;
+      color: #ff3030;
+      font-size: 28px;
+      letter-spacing: 3px;
+    }
 
-  try {
-    await navigator.clipboard.writeText(output.value);
-    status.textContent = "Text copied. Paste it into NOVA's chat.";
-  } catch {
-    output.select();
-    status.textContent = "Select and copy the text manually.";
-  }
-});
+    .subtitle {
+      color: #888;
+      font-size: 13px;
+      margin-top: 5px;
+    }
 
-downloadButton.addEventListener("click", () => {
-  if (!output.value.trim()) {
-    status.textContent = "There is no text to save.";
-    return;
-  }
+    a {
+      color: #ff5555;
+      text-decoration: none;
+      font-size: 13px;
+    }
 
-  const blob = new Blob(
-    [output.value],
-    { type: "text/plain;charset=utf-8" }
-  );
+    .panel {
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
 
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+    .section-title {
+      font-size: 13px;
+      color: #ff4545;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
 
-  link.href = url;
-  link.download = "nova-extracted-document.txt";
-  link.click();
+    input[type="file"] {
+      width: 100%;
+      padding: 13px;
+      background: #191919;
+      border: 1px solid #333;
+      border-radius: 10px;
+      color: #ddd;
+    }
 
-  URL.revokeObjectURL(url);
-});
-</script>
+    textarea {
+      width: 100%;
+      min-height: 320px;
+      resize: vertical;
+      padding: 14px;
+      background: #090909;
+      border: 1px solid #333;
+      border-radius: 10px;
+      color: #eee;
+      font: inherit;
+      line-height: 1.5;
+    }
 
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 10px;
+      background: #e52b2b;
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: #202020;
+      border: 1px solid #383838;
+    }
+
+    button.send {
+      background: #176b42;
+    }
+
+    .status {
+      margin-top: 14px;
+      color: #aaa;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .green {
+      color: #55d68a;
+    }
+
+    .hint {
+      color: #777;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>NOVA</h1>
+        <div class="subtitle">DOCUMENT READER</div>
+      </div>
+      <a href="./index.html">BACK TO CHAT</a>
+    </header>
+
+    <section class="panel">
+      <div class="section-title">1. SELECT DOCUMENT</div>
+
+      <input
+        id="fileInput"
+        type="file"
+        accept=".txt,.pdf,.docx"
+      >
+
+      <div class="hint">
+        Supported formats: TXT, PDF, and DOCX. Scanned PDFs that contain
+        images instead of selectable text are not supported by this reader.
+      </div>
+
+      <div id="status" class="status">
+        Select a document to begin.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">2. EXTRACTED TEXT</div>
+
+      <textarea
+        id="documentText"
+        placeholder="Extracted document text will appear here..."
+      ></textarea>
+
+      <button id="copyButton" class="secondary" disabled>
+        COPY TEXT
+      </button>
+
+      <button id="downloadButton" class="secondary" disabled>
+        DOWNLOAD TEXT FILE
+      </button>
+
+      <button id="sendButton" class="send" disabled>
+        SEND TO NOVA
+      </button>
+
+      <div class="hint">
+        NOVA receives up to 7,000 characters from this document as context.
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    const fileInput = $("fileInput");
+    const documentText = $("documentText");
+    const status = $("status");
+    const copyButton = $("copyButton");
+    const downloadButton = $("downloadButton");
+    const sendButton = $("sendButton");
+
+    let selectedFile = null;
+
+    const MAX_FILE_SIZE = 12 * 1024 * 1024;
+    const MAX_TEXT_LENGTH = 7000;
+    const MAX_PDF_PAGES = 12;
+
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
+    function setStatus(message, success = false) {
+      status.textContent = message;
+      status.className = success ? "status green" : "status";
+    }
+
+    function updateButtons() {
+      const hasText = documentText.value.trim().length > 0;
+
+      copyButton.disabled = !hasText;
+      downloadButton.disabled = !hasText;
+      sendButton.disabled = !hasText;
+    }
+
+    function cleanText(text) {
+      return text
+        .replace(/\r/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
+    async function readTXT(file) {
+      return await file.text();
+    }
+
+    async function readDOCX(file) {
+      if (!window.mammoth) {
+        throw new Error("DOCX reader library did not load. Connect to the internet and reload.");
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+
+      return result.value;
+    }
+
+    async function readPDF(file) {
+      if (!window.pdfjsLib) {
+        throw new Error("PDF reader library did not load. Connect to the internet and reload.");
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+
+      const pdf = await pdfjsLib.getDocument({
+        data: new Uint8Array(arrayBuffer)
+      }).promise;
+
+      const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
+      const pages = [];
+
+      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
+        setStatus("Extracting PDF page " + pageNumber + " of " + pageCount + "...");
+
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+
+        const pageText = content.items
+          .map(item => item.str || "")
+          .join(" ");
+
+        pages.push(pageText);
+      }
+
+      if (pdf.numPages > MAX_PDF_PAGES) {
+        pages.push(
+          "\n[Only the first " + MAX_PDF_PAGES +
+          " pages were extracted. The PDF contains " +
+          pdf.numPages + " pages.]"
+        );
+      }
+
+      return pages.join("\n\n");
+    }
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+
+      if (!file) return;
+
+      selectedFile = file;
+      documentText.value = "";
+      updateButtons();
+
+      if (file.size > MAX_FILE_SIZE) {
+        selectedFile = null;
+        setStatus("File is too large. Choose a file smaller than 12 MB.");
+        return;
+      }
+
+      const extension = file.name.split(".").pop().toLowerCase();
+
+      try {
+        setStatus("Reading " + file.name + "...");
+
+        let extracted = "";
+
+        if (extension === "txt") {
+          extracted = await readTXT(file);
+        } else if (extension === "pdf") {
+          extracted = await readPDF(file);
+        } else if (extension === "docx") {
+          extracted = await readDOCX(file);
+        } else {
+          throw new Error("Unsupported file format.");
+        }
+
+        extracted = cleanText(extracted);
+
+        if (!extracted) {
+          throw new Error("No readable text was found in this document.");
+        }
+
+        const wasTruncated = extracted.length > MAX_TEXT_LENGTH;
+
+        documentText.value = extracted.slice(0, MAX_TEXT_LENGTH);
+
+        updateButtons();
+
+        if (wasTruncated) {
+          setStatus(
+            "Document extracted. Text was shortened to 7,000 characters for NOVA.",
+            true
+          );
+        } else {
+          setStatus("Document extracted successfully.", true);
+        }
+      } catch (error) {
+        console.error(error);
+        selectedFile = null;
+        setStatus("Extraction failed: " + (error.message || error));
+        updateButtons();
+      }
+    });
+
+    documentText.addEventListener("input", updateButtons);
+
+    copyButton.addEventListener("click", async () => {
+      if (!documentText.value.trim()) return;
+
+      try {
+        await navigator.clipboard.writeText(documentText.value);
+        setStatus("Text copied.", true);
+      } catch {
+        documentText.select();
+        setStatus("Select and copy the text manually.");
+      }
+    });
+
+    downloadButton.addEventListener("click", () => {
+      const text = documentText.value;
+
+      if (!text.trim()) return;
+
+      const blob = new Blob([text], {
+        type: "text/plain;charset=utf-8"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const baseName = selectedFile
+        ? selectedFile.name.replace(/\.[^.]+$/, "")
+        : "nova-extracted-document";
+
+      link.href = url;
+      link.download = baseName + ".txt";
+      link.click();
+
+      URL.revokeObjectURL(url);
+
+      setStatus("Text file downloaded.", true);
+    });
+
+    sendButton.addEventListener("click", () => {
+      const text = documentText.value.trim();
+
+      if (!text) return;
+
+      const importedContext = {
+        name: selectedFile ? selectedFile.name : "Imported document",
+        type: "document",
+        text: text.slice(0, MAX_TEXT_LENGTH)
+      };
+
+      try {
+        localStorage.setItem(
+          "nova_imported_context",
+          JSON.stringify(importedContext)
+        );
+
+        setStatus("Sending document to NOVA...", true);
+        window.location.href = "./index.html";
+      } catch (error) {
+        setStatus("Could not send to NOVA: " + error.message);
+      }
+    });
+  </script>
 </body>
 </html>

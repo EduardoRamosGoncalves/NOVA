@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "nova-cache-v4";
+const CACHE_NAME = "nova-cache-v5";
 
 const FILES_TO_CACHE = [
   "./",
@@ -41,16 +41,21 @@ self.addEventListener("fetch", event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put("./index.html", copy);
-          });
+          if (response.ok) {
+            const copy = response.clone();
+
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put("./index.html", copy);
+            });
+          }
+
           return response;
         })
         .catch(async () => {
           return await caches.match("./index.html");
         })
     );
+
     return;
   }
 
@@ -61,10 +66,12 @@ self.addEventListener("fetch", event => {
       return fetch(request).then(response => {
         if (response.ok) {
           const copy = response.clone();
+
           caches.open(CACHE_NAME).then(cache => {
             cache.put(request, copy);
           });
         }
+
         return response;
       });
     })

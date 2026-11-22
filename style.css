@@ -1,3 +1,4 @@
+
 * {
   box-sizing: border-box;
 }
@@ -9,13 +10,21 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+button, input, textarea, select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 .app {
-  max-width: 850px;
-  height: 100dvh;
+  width: min(100%, 760px);
+  min-height: 100vh;
   margin: auto;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  padding: 18px;
 }
 
 .header {
@@ -34,205 +43,165 @@ body {
 }
 
 .logo {
-  width: 42px;
-  height: 42px;
+  width: 43px;
+  height: 43px;
   display: grid;
   place-items: center;
+  background: #d92727;
   border-radius: 12px;
-  background: #d52d2d;
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
-h1 {
+.brand h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 21px;
   letter-spacing: 3px;
 }
 
-.header p {
-  margin: 4px 0 0;
+.brand p {
   color: #888;
   font-size: 9px;
   letter-spacing: 1px;
+  margin: 4px 0 0;
 }
 
 .header-buttons {
   display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-button {
+.load-button,
+.clear-button {
   border: 0;
-  color: white;
-  cursor: pointer;
-  font-weight: 700;
+  border-radius: 9px;
+  padding: 11px 13px;
+  font-size: 10px;
+  font-weight: bold;
 }
 
 .load-button {
-  background: #d52d2d;
-  padding: 12px 14px;
-  border-radius: 10px;
-  font-size: 11px;
-  letter-spacing: 1px;
+  background: #d92727;
+  color: white;
 }
 
-.load-button:disabled,
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.load-button:disabled {
+  opacity: 0.6;
 }
 
 .clear-button {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
   background: #202020;
-  font-size: 24px;
-}
-
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 2px;
-}
-
-.message {
-  margin-bottom: 20px;
-}
-
-.sender {
-  margin-bottom: 7px;
-  color: #e34a4a;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-}
-
-.bubble {
-  display: inline-block;
-  max-width: 90%;
-  padding: 13px 15px;
-  border: 1px solid #292929;
-  border-radius: 5px 15px 15px 15px;
-  background: #151515;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.message.user {
-  text-align: right;
-}
-
-.message.user .sender {
-  color: #999;
-}
-
-.message.user .bubble {
-  text-align: left;
-  background: #292020;
-  border-color: #542727;
-  border-radius: 15px 5px 15px 15px;
+  color: white;
+  font-size: 18px;
 }
 
 .progress-area {
-  padding: 12px 2px;
+  margin: 16px 0;
   color: #999;
   font-size: 11px;
 }
 
 .progress-track {
-  width: 100%;
-  height: 5px;
-  margin-top: 9px;
+  height: 4px;
+  background: #292929;
   border-radius: 10px;
-  background: #252525;
   overflow: hidden;
+  margin-top: 8px;
 }
 
 #progressBar {
-  width: 0%;
   height: 100%;
-  background: #d52d2d;
+  width: 0;
+  background: #d92727;
   transition: width 0.2s;
+}
+
+.messages {
+  flex: 1;
+  min-height: 180px;
+  max-height: 430px;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+.message {
+  margin-bottom: 17px;
+}
+
+.sender {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #d94b4b;
+  margin-bottom: 6px;
+}
+
+.message.user .sender {
+  color: #aaa;
+}
+
+.bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #171717;
+  color: #eee;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message.user .bubble {
+  background: #291111;
 }
 
 .composer {
   display: flex;
-  gap: 9px;
+  gap: 8px;
   padding: 12px 0;
   border-top: 1px solid #252525;
 }
 
-#messageInput {
+.composer input {
   flex: 1;
   min-width: 0;
-  padding: 14px;
-  border: 1px solid #303030;
-  border-radius: 12px;
-  outline: none;
-  background: #151515;
+  background: #171717;
   color: white;
-  font-size: 15px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 13px;
+  outline: none;
 }
 
-#messageInput:focus {
-  border-color: #b52a2a;
+.composer input:focus {
+  border-color: #d92727;
 }
 
-#sendButton {
-  padding: 0 18px;
-  border-radius: 12px;
-  background: #d52d2d;
-  font-size: 11px;
-  letter-spacing: 1px;
+.composer button {
+  background: #d92727;
+  color: white;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 10px;
+  font-weight: bold;
 }
 
 footer {
   display: flex;
   justify-content: space-between;
-  padding-top: 10px;
   color: #666;
   font-size: 9px;
   letter-spacing: 1px;
+  padding: 10px 0;
 }
 
-@media (max-width: 430px) {
-  .app {
-    padding: 12px;
-  }
+/* TASK MANAGER */
 
-  .header {
-    gap: 6px;
-  }
-
-  .load-button {
-    padding: 11px 9px;
-  }
-
-  .brand {
-    gap: 8px;
-  }
-
-  .logo {
-    width: 36px;
-    height: 36px;
-  }
-
-  h1 {
-    font-size: 17px;
-  }
-
-  .header p {
-    font-size: 8px;
-  }
-}
-
-/* ---------- NOVA TASK MANAGER ---------- */
-
-.task-panel {
+.task-panel,
+.notes-panel {
   background: #111;
   border: 1px solid #292929;
   border-radius: 16px;
@@ -240,26 +209,30 @@ footer {
   margin: 18px 0;
 }
 
-.task-heading {
+.task-heading,
+.notes-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
 }
 
-.task-heading h2 {
+.task-heading h2,
+.notes-heading h2 {
   font-size: 16px;
   letter-spacing: 2px;
   margin: 0;
 }
 
-.task-heading p {
+.task-heading p,
+.notes-heading p {
   color: #888;
   font-size: 12px;
   margin: 5px 0 0;
 }
 
-.task-icon {
+.task-icon,
+.notes-icon {
   display: grid;
   place-items: center;
   width: 35px;
@@ -270,21 +243,31 @@ footer {
   font-size: 20px;
 }
 
-.task-form {
+.task-form,
+.note-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
 .task-form input,
-.task-form select {
+.task-form select,
+.note-form input,
+.note-form textarea,
+.note-search {
   min-width: 0;
+  width: 100%;
   background: #090909;
   color: white;
   border: 1px solid #333;
   border-radius: 9px;
   padding: 12px;
-  font: inherit;
+  font-size: 13px;
+}
+
+.note-form textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
 .task-options {
@@ -293,8 +276,8 @@ footer {
   gap: 8px;
 }
 
-.task-add-button {
-  grid-column: 1 / -1;
+.task-add-button,
+.note-add-button {
   background: #d92727;
   color: white;
   border: 0;
@@ -302,6 +285,10 @@ footer {
   padding: 12px;
   font-weight: bold;
   letter-spacing: 1px;
+}
+
+.task-options .task-add-button {
+  grid-column: 1 / -1;
 }
 
 .task-filters {
@@ -327,7 +314,8 @@ footer {
   border-color: #8e2929;
 }
 
-.task-list {
+.task-list,
+.note-list {
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -415,7 +403,8 @@ footer {
   gap: 6px;
 }
 
-.task-actions button {
+.task-actions button,
+.note-actions button {
   background: transparent;
   color: #aaa;
   border: 1px solid #383838;
@@ -425,23 +414,89 @@ footer {
   font-weight: bold;
 }
 
-.task-actions button:last-child {
+.task-actions button:last-child,
+.note-actions button:last-child {
   color: #ff6666;
 }
 
-.task-empty {
+.task-empty,
+.note-empty {
   color: #777;
   text-align: center;
   font-size: 12px;
   padding: 15px 5px;
 }
 
-.task-empty[hidden] {
+.task-empty[hidden],
+.note-empty[hidden] {
   display: none;
 }
 
+/* NOTES MANAGER */
+
+.note-search {
+  margin-top: 16px;
+}
+
+.note-list {
+  margin-top: 12px;
+}
+
+.note-card {
+  background: #191919;
+  border: 1px solid #303030;
+  border-radius: 11px;
+  padding: 13px;
+  min-width: 0;
+}
+
+.note-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.note-card-heading h3 {
+  font-size: 14px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note-date {
+  flex-shrink: 0;
+  color: #777;
+  font-size: 10px;
+}
+
+.note-card-content {
+  color: #bbb;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+}
+
+.note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.note-actions button {
+  padding: 6px 10px;
+}
+
+/* SMALL SCREENS */
+
 @media (max-width: 380px) {
-  .task-panel {
+  .app {
+    padding: 12px;
+  }
+
+  .task-panel,
+  .notes-panel {
     padding: 13px;
   }
 

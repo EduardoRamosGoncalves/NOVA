@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "nova-cache-v6";
+const CACHE_NAME = "nova-cache-v7";
 
 const FILES_TO_CACHE = [
   "./",

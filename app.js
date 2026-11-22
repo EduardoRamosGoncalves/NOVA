@@ -1,5 +1,11 @@
 const MODEL_ID = "SmolLM2-360M-Instruct-q4f32_1-MLC";
 
+const STORAGE_KEYS = {
+  memories: "nova_memories",
+  conversation: "nova_conversation",
+  display: "nova_display_history"
+};
+
 const loadButton = document.getElementById("loadModelButton");
 const clearButton = document.getElementById("clearButton");
 const chatForm = document.getElementById("chatForm");
@@ -12,14 +18,24 @@ const progressBar = document.getElementById("progressBar");
 
 let engine = null;
 let loading = false;
-let conversation = [];
 
-const memories = JSON.parse(
-  localStorage.getItem("nova_memories") || "[]"
-);
+function readStorage(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
-function saveMemories() {
-  localStorage.setItem("nova_memories", JSON.stringify(memories));
+let memories = readStorage(STORAGE_KEYS.memories, []);
+let conversation = readStorage(STORAGE_KEYS.conversation, []);
+let displayHistory = readStorage(STORAGE_KEYS.display, []);
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEYS.memories, JSON.stringify(memories));
+  localStorage.setItem(STORAGE_KEYS.conversation, JSON.stringify(conversation));
+  localStorage.setItem(STORAGE_KEYS.display, JSON.stringify(displayHistory));
 }
 
 function setStatus(text) {
@@ -31,7 +47,7 @@ function setProgress(text, percentage) {
   progressBar.style.width = `${percentage}%`;
 }
 
-function addMessage(sender, text) {
+function renderMessage(sender, text) {
   const wrapper = document.createElement("div");
   wrapper.className = `message ${sender}`;
 
@@ -52,8 +68,42 @@ function addMessage(sender, text) {
   return bubble;
 }
 
+function addMessage(sender, text) {
+  displayHistory.push({ sender, text });
+
+  // Keep the displayed history from growing indefinitely.
+  displayHistory = displayHistory.slice(-100);
+
+  const bubble = renderMessage(sender, text);
+  saveState();
+
+  return bubble;
+}
+
+function restoreConversation() {
+  chatMessages.innerHTML = "";
+
+  if (displayHistory.length === 0) {
+    renderMessage(
+      "assistant",
+      "Welcome back. Your saved conversations and memories are available."
+    );
+    return;
+  }
+
+  for (const message of displayHistory) {
+    if (
+      message &&
+      ["user", "assistant"].includes(message.sender) &&
+      typeof message.text === "string"
+    ) {
+      renderMessage(message.sender, message.text);
+    }
+  }
+}
+
 function getSystemPrompt() {
-  let memoryText = memories.length
+  const memoryText = memories.length
     ? memories.map(item => `- ${item}`).join("\n")
     : "No saved memories.";
 
@@ -62,8 +112,9 @@ You run locally on the user's device.
 Answer clearly and naturally.
 Use simple language.
 Do not pretend to have access to the internet or the user's files.
-Your saved memories are:
+Use the saved memories when relevant, but do not force them into unrelated answers.
 
+Saved memories:
 ${memoryText}`;
 }
 
@@ -72,8 +123,9 @@ function handleCommand(text) {
   const lower = command.toLowerCase();
 
   if (lower === "/help") {
-    addMessage("assistant",
-      "Commands:\n/remember [information]\n/memories\n/forget [information]\n/clear\n/help"
+    addMessage(
+      "assistant",
+      "Available commands:\n/remember [information]\n/memories\n/forget [information]\n/clear\n/help"
     );
     return true;
   }
@@ -87,8 +139,8 @@ function handleCommand(text) {
     }
 
     memories.push(memory);
-    saveMemories();
-    addMessage("assistant", "Saved to local memory.");
+    saveState();
+    addMessage("assistant", "Saved. I'll include this memory when relevant.");
     return true;
   }
 
@@ -104,6 +156,12 @@ function handleCommand(text) {
 
   if (lower.startsWith("/forget ")) {
     const target = command.slice(8).trim().toLowerCase();
+
+    if (!target) {
+      addMessage("assistant", "Write the memory you want to remove.");
+      return true;
+    }
+
     const index = memories.findIndex(
       item => item.toLowerCase().includes(target)
     );
@@ -112,7 +170,7 @@ function handleCommand(text) {
       addMessage("assistant", "I couldn't find that memory.");
     } else {
       memories.splice(index, 1);
-      saveMemories();
+      saveState();
       addMessage("assistant", "Memory deleted.");
     }
 
@@ -121,8 +179,10 @@ function handleCommand(text) {
 
   if (lower === "/clear") {
     conversation = [];
+    displayHistory = [];
     chatMessages.innerHTML = "";
-    addMessage("assistant", "Conversation cleared.");
+    saveState();
+    addMessage("assistant", "Conversation cleared. Your saved memories are safe.");
     return true;
   }
 
@@ -138,9 +198,7 @@ async function loadAI() {
 
   try {
     if (!navigator.gpu) {
-      throw new Error(
-        "WebGPU is unavailable in this Safari session. Update iOS and try again."
-      );
+      throw new Error("WebGPU is unavailable in this Safari session.");
     }
 
     setStatus("CHECKING DEVICE");
@@ -149,27 +207,24 @@ async function loadAI() {
     const adapter = await navigator.gpu.requestAdapter();
 
     if (!adapter) {
-      throw new Error("Safari could not access a compatible graphics adapter.");
+      throw new Error("No compatible graphics adapter was found.");
     }
 
-    setStatus("DOWNLOADING AI ENGINE");
-    setProgress("Preparing local AI engine...", 5);
+    setStatus("LOADING AI ENGINE");
+    setProgress("Preparing the local AI engine...", 5);
 
     const webllm = await import("https://esm.run/@mlc-ai/web-llm");
 
     setStatus("LOADING LOCAL MODEL");
 
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
-      initProgressCallback: (report) => {
+      initProgressCallback: report => {
         const progress = Math.max(
           5,
           Math.min(100, Math.round((report.progress || 0) * 100))
         );
 
-        setProgress(
-          report.text || "Loading model...",
-          progress
-        );
+        setProgress(report.text || "Loading model...", progress);
       }
     });
 
@@ -177,10 +232,7 @@ async function loadAI() {
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
-    addMessage(
-      "assistant",
-      "My local AI model is ready. You can now talk to me."
-    );
+    addMessage("assistant", "I'm ready. Your saved memories are available.");
 
   } catch (error) {
     engine = null;
@@ -188,6 +240,7 @@ async function loadAI() {
     setProgress(`Error: ${error.message}`, 0);
     loadButton.disabled = false;
     loadButton.textContent = "TRY AGAIN";
+
     addMessage("assistant", `I couldn't load my AI model.\n${error.message}`);
     console.error(error);
 
@@ -206,10 +259,7 @@ async function sendMessage(text) {
   if (handleCommand(cleanText)) return;
 
   if (!engine) {
-    addMessage(
-      "assistant",
-      "My AI model isn't loaded yet. Tap LOAD AI first."
-    );
+    addMessage("assistant", "My AI model isn't loaded yet. Tap LOAD AI first.");
     return;
   }
 
@@ -217,6 +267,10 @@ async function sendMessage(text) {
     role: "user",
     content: cleanText
   });
+
+  // Limit recent context to avoid sending an unlimited conversation.
+  conversation = conversation.slice(-12);
+  saveState();
 
   sendButton.disabled = true;
   messageInput.disabled = true;
@@ -249,8 +303,26 @@ async function sendMessage(text) {
       content: answer
     });
 
+    conversation = conversation.slice(-12);
+
+    const lastDisplayMessage = displayHistory[displayHistory.length - 1];
+
+    if (lastDisplayMessage) {
+      lastDisplayMessage.text = answer;
+    }
+
+    saveState();
+
   } catch (error) {
     replyBubble.textContent = `Generation error: ${error.message}`;
+
+    const lastDisplayMessage = displayHistory[displayHistory.length - 1];
+
+    if (lastDisplayMessage) {
+      lastDisplayMessage.text = replyBubble.textContent;
+    }
+
+    saveState();
     console.error(error);
 
   } finally {
@@ -263,10 +335,11 @@ async function sendMessage(text) {
 
 loadButton.addEventListener("click", loadAI);
 
-chatForm.addEventListener("submit", async (event) => {
+chatForm.addEventListener("submit", async event => {
   event.preventDefault();
 
   const text = messageInput.value.trim();
+
   if (!text) return;
 
   messageInput.value = "";
@@ -275,9 +348,14 @@ chatForm.addEventListener("submit", async (event) => {
 
 clearButton.addEventListener("click", () => {
   conversation = [];
+  displayHistory = [];
   chatMessages.innerHTML = "";
-  addMessage("assistant", "Conversation cleared.");
+  saveState();
+
+  addMessage("assistant", "Conversation cleared. Your saved memories are safe.");
 });
+
+restoreConversation();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

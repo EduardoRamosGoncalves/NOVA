@@ -9,7 +9,7 @@
   <title>NOVA</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=2">
 
   <style>
     .navigation {
@@ -42,6 +42,36 @@
     }
 
     .screen {
+      width: 100%;
+    }
+
+    /* FIXED TASK DATE FIELD */
+
+    .task-options {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) 125px !important;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .task-options select {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .task-options input[type="date"] {
+      width: 125px !important;
+      min-width: 125px !important;
+      max-width: 125px !important;
+      justify-self: start;
+      padding: 8px 4px;
+      font-size: 11px;
+      overflow: hidden;
+    }
+
+    .task-options .task-add-button {
+      grid-column: 1 / -1;
       width: 100%;
     }
   </style>

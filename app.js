@@ -7,6 +7,7 @@ const MAX_TOKENS = 160;
 const MAX_CONVERSATION_MESSAGES = 4;
 const MAX_MESSAGE_LENGTH = 1200;
 const MAX_ATTACHMENT_TEXT = 7000;
+const IMPORT_KEY = "nova_imported_context";
 
 const KEYS = {
   memories: "nova_memories",
@@ -55,6 +56,7 @@ let generating = false;
 let currentFilter = "all";
 let attachments = [];
 let attachmentContext = "";
+let importedContext = null;
 
 function readStorage(key, fallback) {
   try {
@@ -611,7 +613,6 @@ function performNaturalAction(input) {
 
   let match;
 
-  // Add a task.
   match = text.match(/^(?:please\s+)?(?:nova[, ]*)?(?:add|create|make)\s+(?:a\s+)?task\s+(?:to\s+)?(.+)$/i);
   if (match) {
     let taskText = match[1].trim();
@@ -637,7 +638,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // Add a memory.
   match = text.match(/^(?:please\s+)?(?:nova[, ]*)?(?:remember|save to memory|memorize)\s+(?:that\s+)?(.+)$/i);
   if (match) {
     const success = saveMemory(match[1]);
@@ -647,7 +647,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // List memories.
   if (/^(?:show|list|view)\s+(?:me\s+)?(?:my\s+)?memories$/.test(lower) ||
       lower === "what do you remember about me?") {
     addMessage("assistant", memories.length
@@ -656,7 +655,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // Create a note.
   match = text.match(/^(?:please\s+)?(?:nova[, ]*)?(?:create|save|add)\s+(?:a\s+)?note(?:\s+(?:called|titled)\s+(.+?))?\s*(?:with content|:)\s*(.+)$/i);
   if (match) {
     const title = match[1] || "Untitled note";
@@ -668,7 +666,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // List notes.
   if (/^(?:show|list|view)\s+(?:me\s+)?(?:my\s+)?notes$/.test(lower)) {
     addMessage("assistant", notes.length
       ? notes.map((n, i) => `${i + 1}. ${n.title}\n${n.content}`).join("\n\n")
@@ -676,26 +673,27 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // List tasks.
   if (/^(?:show|list|view)\s+(?:me\s+)?(?:my\s+)?tasks$/.test(lower) ||
       lower === "what are my tasks?") {
     showTasks("all");
     return true;
   }
+
   if (/^(?:show|list)\s+(?:my\s+)?open tasks$/.test(lower)) {
     showTasks("open");
     return true;
   }
+
   if (/^(?:show|list)\s+(?:my\s+)?completed tasks$/.test(lower)) {
     showTasks("done");
     return true;
   }
 
-  // Complete a task by its current displayed number.
   match = lower.match(/^(?:mark|set|complete|finish)\s+(?:task\s*)#?(\d+)\s+(?:as\s+)?(?:done|complete|completed)$/);
   if (!match) {
     match = lower.match(/^(?:complete|finish)\s+task\s+#?(\d+)$/);
   }
+
   if (match) {
     const number = Number(match[1]);
     const success = completeTask(number);
@@ -705,7 +703,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // Reopen a task.
   match = lower.match(/^(?:reopen|restore)\s+task\s+#?(\d+)$/);
   if (match) {
     const number = Number(match[1]);
@@ -716,11 +713,11 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // Delete a task, with confirmation.
   match = lower.match(/^(?:delete|remove)\s+task\s+#?(\d+)$/);
   if (match) {
     const number = Number(match[1]);
     const task = tasks[number - 1];
+
     if (!task) {
       addMessage("assistant", `I couldn't find task ${number}.`);
     } else if (confirm(`Delete task "${task.text}"?`)) {
@@ -736,7 +733,6 @@ function performNaturalAction(input) {
     return true;
   }
 
-  // Delete a memory by number.
   match = lower.match(/^(?:forget|delete)\s+memory\s+#?(\d+)$/);
   if (match) {
     const number = Number(match[1]);
@@ -840,6 +836,7 @@ Other:
   if (lower.startsWith("/note delete ")) {
     const number = Number(command.slice(13).trim());
     const note = notes[number - 1];
+
     if (!note) {
       addMessage("assistant", "That note number doesn't exist.");
     } else {
@@ -878,6 +875,7 @@ Other:
   if (lower.startsWith("/task delete ")) {
     const number = Number(command.slice(13).trim());
     const task = tasks[number - 1];
+
     if (!task) {
       addMessage("assistant", "That task number doesn't exist.");
     } else if (confirm(`Delete "${task.text}"?`)) {
@@ -946,9 +944,11 @@ function calculate(expression) {
     while (["*", "/", "%"].includes(tokens[position])) {
       const op = tokens[position++];
       const right = factor();
+
       if ((op === "/" || op === "%") && right === 0) {
         throw new Error("Division by zero.");
       }
+
       if (op === "*") value *= right;
       if (op === "/") value /= right;
       if (op === "%") value %= right;
@@ -968,7 +968,9 @@ function calculate(expression) {
     if (token === "(") {
       position++;
       const value = expressionValue();
-      if (tokens[position++] !== ")") throw new Error("Missing closing parenthesis.");
+      if (tokens[position++] !== ")") {
+        throw new Error("Missing closing parenthesis.");
+      }
       return value;
     }
 
@@ -1116,6 +1118,70 @@ async function extractFileText(file) {
   throw new Error("Unsupported file type.");
 }
 
+/* IMPORT FROM OTHER NOVA PAGES */
+
+function readImportedContext() {
+  try {
+    const raw = localStorage.getItem(IMPORT_KEY);
+    if (!raw) return null;
+
+    const data = JSON.parse(raw);
+
+    if (typeof data === "string") {
+      return {
+        name: "Imported content",
+        type: "text",
+        text: data
+      };
+    }
+
+    if (!data || typeof data !== "object") return null;
+
+    const text = String(
+      data.text ??
+      data.content ??
+      data.caption ??
+      data.description ??
+      ""
+    ).trim();
+
+    if (!text) return null;
+
+    return {
+      name: String(data.name || data.filename || "Imported content"),
+      type: String(data.type || "text"),
+      text: text.slice(0, MAX_ATTACHMENT_TEXT)
+    };
+  } catch (error) {
+    console.error("Could not read imported NOVA content:", error);
+    return null;
+  }
+}
+
+function refreshImportedContext() {
+  const latest = readImportedContext();
+  if (latest) importedContext = latest;
+}
+
+function clearImportedContext() {
+  importedContext = null;
+
+  try {
+    localStorage.removeItem(IMPORT_KEY);
+  } catch (error) {
+    console.error("Could not clear imported content:", error);
+  }
+}
+
+window.addEventListener("storage", event => {
+  if (event.key === IMPORT_KEY) {
+    refreshImportedContext();
+  }
+});
+
+window.addEventListener("focus", refreshImportedContext);
+window.addEventListener("pageshow", refreshImportedContext);
+
 function buildAttachmentContext() {
   const readable = attachments
     .filter(item => item.text)
@@ -1129,6 +1195,12 @@ function buildAttachmentContext() {
     result += (result ? "\n\n" : "") +
       `IMAGE ATTACHMENTS: ${images.map(item => item.name).join(", ")}.\n` +
       "The current text model cannot inspect image contents. Explain this limitation honestly.";
+  }
+
+  if (importedContext) {
+    result += (result ? "\n\n" : "") +
+      `IMPORTED FROM NOVA ${importedContext.type.toUpperCase()}: ${importedContext.name}\n` +
+      importedContext.text;
   }
 
   return result.slice(0, MAX_ATTACHMENT_TEXT);
@@ -1162,7 +1234,8 @@ You must be honest about your abilities.
 The app has a separate action system for tasks, notes and memories.
 When the user asks you to change app data, follow the request through the available app actions when possible. Never claim an action happened unless the app confirms it.
 If a file's text is provided, analyze that text.
-The current text model cannot understand image contents. Never pretend to see or describe an attached image.
+If imported image-caption text is provided, use it as the available description of the image. Do not claim to see visual details beyond the description.
+The current text model cannot directly inspect image pixels.
 
 SAVED MEMORIES:
 ${memoryContext || "No saved memories."}
@@ -1173,7 +1246,7 @@ ${noteContext || "No notes."}
 TASKS:
 ${taskContext || "No tasks."}
 
-ATTACHED FILE CONTENT:
+ATTACHED AND IMPORTED CONTENT:
 ${attachmentContext || "No file content attached."}`;
 }
 
@@ -1187,13 +1260,17 @@ async function loadAI() {
   loadButton.textContent = "LOADING";
 
   try {
-    if (!navigator.gpu) throw new Error("WebGPU is unavailable in this Safari session.");
+    if (!navigator.gpu) {
+      throw new Error("WebGPU is unavailable in this Safari session.");
+    }
 
     setStatus("CHECKING DEVICE");
     setProgress("Checking graphics support...", 2);
 
     const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error("No compatible graphics adapter was found.");
+    if (!adapter) {
+      throw new Error("No compatible graphics adapter was found.");
+    }
 
     setStatus("LOADING AI ENGINE");
     setProgress("Preparing local AI engine...", 5);
@@ -1258,10 +1335,10 @@ async function sendMessage(text) {
 
   addMessage("user", clean);
 
-  // Deterministic app actions run before the language model.
   if (handleCommand(clean)) return;
   if (performNaturalAction(clean)) return;
 
+  refreshImportedContext();
   attachmentContext = buildAttachmentContext();
 
   if (!engine) {
@@ -1340,8 +1417,8 @@ async function sendMessage(text) {
     messageInput.focus();
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    // Clear the attachment context after this response.
     attachmentContext = "";
+    clearImportedContext();
   }
 }
 
@@ -1357,11 +1434,11 @@ chatForm.addEventListener("submit", async event => {
 
   messageInput.value = "";
   await sendMessage(text);
-
-  // Keep attachment previews available until the user removes them.
 });
 
 /* STARTUP */
+
+refreshImportedContext();
 
 saveState();
 renderTasks();

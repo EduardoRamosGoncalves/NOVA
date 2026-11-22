@@ -1,5 +1,5 @@
 
-const MODEL_ID = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
 
 const KEYS = {
   memories: "nova_memories",
@@ -57,8 +57,6 @@ let displayHistory = readStorage(KEYS.display, []);
 let rawNotes = readStorage(KEYS.notes, []);
 let rawTasks = readStorage(KEYS.tasks, []);
 
-// Reset old AI conversation context after changing models.
-// Your saved notes, tasks and memories stay untouched.
 try {
   const previousModel = localStorage.getItem(KEYS.model);
 
@@ -246,13 +244,9 @@ clearButton.addEventListener("click", () => {
       "assistant",
       "New conversation started. How can I help?"
     );
-  }
-
-  else if (activeScreen.id === "notesScreen") {
+  } else if (activeScreen.id === "notesScreen") {
     noteTitle.focus();
-  }
-
-  else if (activeScreen.id === "tasksScreen") {
+  } else if (activeScreen.id === "tasksScreen") {
     taskInput.focus();
   }
 });
@@ -1140,8 +1134,8 @@ async function loadAI() {
       "https://esm.run/@mlc-ai/web-llm"
     );
 
-    setStatus("DOWNLOADING QWEN 3B");
-    setProgress("Preparing the new local model...", 5);
+    setStatus("DOWNLOADING QWEN 1.5B");
+    setProgress("Preparing the 1.5B local model...", 5);
 
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: report => {
@@ -1155,17 +1149,17 @@ async function loadAI() {
           progress
         );
 
-        setStatus("LOADING QWEN 3B");
+        setStatus("LOADING QWEN 1.5B");
       }
     });
 
-    setProgress("Qwen 3B is ready.", 100);
+    setProgress("Qwen 1.5B is ready.", 100);
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
     addMessage(
       "assistant",
-      "NOVA is ready. I'm now running on Qwen2.5-3B locally."
+      "NOVA is ready. I'm now running on Qwen2.5-1.5B locally."
     );
 
   } catch (error) {
@@ -1178,7 +1172,7 @@ async function loadAI() {
 
     addMessage(
       "assistant",
-      `I couldn't load the new AI model.\n${error.message}`
+      `I couldn't load the AI model.\n${error.message}`
     );
 
     console.error(error);
@@ -1199,7 +1193,7 @@ async function sendMessage(text) {
   if (!engine) {
     addMessage(
       "assistant",
-      "My AI model isn't loaded yet. Please wait for loading to finish or tap LOAD AI."
+      "My AI model isn't loaded yet. Tap LOAD AI when you're ready."
     );
     return;
   }
@@ -1226,10 +1220,9 @@ async function sendMessage(text) {
         },
         ...conversation
       ],
-      temperature: 0.6,
+      temperature: 0.4,
       top_p: 0.9,
-      frequency_penalty: 0.2,
-      max_tokens: 384
+      max_tokens: 256
     });
 
     const answer =
@@ -1297,9 +1290,12 @@ renderTasks();
 renderNotes();
 restoreConversation();
 
-window.addEventListener("load", () => {
-  loadAI();
+setStatus("AI NOT LOADED");
+setProgress("NOVA is ready. Load the AI when you want.", 0);
+loadButton.disabled = false;
+loadButton.textContent = "LOAD AI";
 
+window.addEventListener("load", () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js")
       .catch(error => {

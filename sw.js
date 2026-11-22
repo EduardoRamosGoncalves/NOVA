@@ -1,68 +1,68 @@
+const CACHE_NAME = "nova-v2";
 
-const CACHE_NAME = "nova-v1";
-
-const FILES = [
-    "./",
-    "./index.html",
-    "./style.css",
-    "./app.js",
-    "./manifest.json",
-    "./icon.svg"
+const FILES_TO_CACHE = [
+  "./",
+  "./index.html",
+  "./style.css",
+  "./app.js",
+  "./manifest.json",
+  "./icon.svg"
 ];
 
 self.addEventListener("install", event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache =>
-            cache.addAll(FILES)
-        )
-    );
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(FILES_TO_CACHE);
+    })
+  );
 
-    self.skipWaiting();
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {
-    event.waitUntil(
-        caches.keys().then(keys =>
-            Promise.all(
-                keys
-                    .filter(key => key !== CACHE_NAME)
-                    .map(key => caches.delete(key))
-            )
-        )
-    );
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+      );
+    })
+  );
 
-    self.clients.claim();
+  self.clients.claim();
 });
 
 self.addEventListener("fetch", event => {
-    const request = event.request;
+  if (event.request.method !== "GET") return;
 
-    if (request.method !== "GET") return;
+  const url = new URL(event.request.url);
 
-    if (request.mode === "navigate") {
-        event.respondWith(
-            fetch(request).catch(async () => {
-                return await caches.match("./index.html");
-            })
-        );
-        return;
-    }
+  if (url.origin !== self.location.origin) return;
 
-    event.respondWith(
-        caches.match(request).then(cached => {
-            if (cached) return cached;
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
 
-            return fetch(request).then(response => {
-                if (response.ok) {
-                    const copy = response.clone();
+      return fetch(event.request).then(response => {
+        if (response && response.ok) {
+          const copy = response.clone();
 
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(request, copy);
-                    });
-                }
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, copy);
+          });
+        }
 
-                return response;
-            });
-        })
-    );
+        return response;
+      }).catch(() => {
+        if (event.request.mode === "navigate") {
+          return caches.match("./index.html");
+        }
+
+        return new Response("Offline resource unavailable.", {
+          status: 503
+        });
+      });
+    })
+  );
 });

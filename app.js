@@ -372,6 +372,15 @@ function addTask(text, priority = "normal", dueDate = "") {
   return true;
 }
 
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value;
+}
+
 function editTask(id) {
   const task = tasks.find(item => item.id === id);
   if (!task) return;
@@ -407,10 +416,7 @@ function editTask(id) {
 
   const cleanDate = newDate.trim();
 
-  if (
-    cleanDate &&
-    !isValidDate(cleanDate)
-  ) {
+  if (cleanDate && !isValidDate(cleanDate)) {
     alert("Invalid date. Use YYYY-MM-DD.");
     return;
   }
@@ -421,15 +427,6 @@ function editTask(id) {
 
   saveState();
   renderTasks();
-}
-
-function isValidDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-
-  const date = new Date(`${value}T00:00:00`);
-
-  return !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) === value;
 }
 
 function deleteTask(id) {
@@ -470,8 +467,6 @@ function showTasks(filter = "all") {
     return;
   }
 
-  const header = `${title} (${list.length})`;
-
   const lines = list.map(({ task, number }) => {
     const status = task.done ? "[DONE]" : "[OPEN]";
     const due = task.dueDate ? ` | Due: ${task.dueDate}` : "";
@@ -485,7 +480,7 @@ function showTasks(filter = "all") {
     const section = lines.slice(i, i + chunkSize);
 
     const sectionHeader = i === 0
-      ? header
+      ? `${title} (${list.length})`
       : `${title} (continued)`;
 
     addMessage(
@@ -562,7 +557,6 @@ function editTaskByNumber(number) {
   }
 
   editTask(tasks[number - 1].id);
-  addMessage("assistant", "Task editing finished.");
 }
 
 function clearCompletedTasks() {
@@ -1053,26 +1047,22 @@ Other:
   }
 
   if (lower.startsWith("/task done ")) {
-    const number = Number(command.slice(11).trim());
-    completeTask(number);
+    completeTask(Number(command.slice(11).trim()));
     return true;
   }
 
   if (lower.startsWith("/task reopen ")) {
-    const number = Number(command.slice(13).trim());
-    reopenTask(number);
+    reopenTask(Number(command.slice(13).trim()));
     return true;
   }
 
   if (lower.startsWith("/task edit ")) {
-    const number = Number(command.slice(11).trim());
-    editTaskByNumber(number);
+    editTaskByNumber(Number(command.slice(11).trim()));
     return true;
   }
 
   if (lower.startsWith("/task delete ")) {
-    const number = Number(command.slice(13).trim());
-    removeTaskByNumber(number);
+    removeTaskByNumber(Number(command.slice(13).trim()));
     return true;
   }
 
@@ -1189,7 +1179,7 @@ async function sendMessage(text) {
   if (!engine) {
     addMessage(
       "assistant",
-      "My AI model isn't loaded yet. Tap LOAD AI first."
+      "My AI model isn't loaded yet. Please wait for loading to finish or tap LOAD AI."
     );
     return;
   }
@@ -1293,3 +1283,8 @@ if ("serviceWorker" in navigator) {
       });
   });
 }
+
+// Automatically load the AI when NOVA opens.
+window.addEventListener("load", () => {
+  loadAI();
+});

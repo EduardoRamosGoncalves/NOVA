@@ -1,5 +1,6 @@
-
-const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Qwen3.5-2B-q4f16_1-MLC";
+const MODEL_NAME = "Qwen3.5-2B";
+const WEBLLM_VERSION = "0.2.88";
 
 const KEYS = {
   memories: "nova_memories",
@@ -1131,11 +1132,11 @@ async function loadAI() {
     setProgress("Preparing local AI engine...", 5);
 
     const webllm = await import(
-      "https://esm.run/@mlc-ai/web-llm"
+      `https://esm.run/@mlc-ai/web-llm@${WEBLLM_VERSION}`
     );
 
-    setStatus("DOWNLOADING QWEN 1.5B");
-    setProgress("Preparing the 1.5B local model...", 5);
+    setStatus(`DOWNLOADING ${MODEL_NAME.toUpperCase()}`);
+    setProgress(`Preparing ${MODEL_NAME}...`, 5);
 
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: report => {
@@ -1149,17 +1150,17 @@ async function loadAI() {
           progress
         );
 
-        setStatus("LOADING QWEN 1.5B");
+        setStatus(`LOADING ${MODEL_NAME.toUpperCase()}`);
       }
     });
 
-    setProgress("Qwen 1.5B is ready.", 100);
+    setProgress(`${MODEL_NAME} is ready.`, 100);
     setStatus("LOCAL AI READY");
     loadButton.textContent = "AI READY";
 
     addMessage(
       "assistant",
-      "NOVA is ready. I'm now running on Qwen2.5-1.5B locally."
+      `NOVA is ready. I'm now running on ${MODEL_NAME} locally.`
     );
 
   } catch (error) {

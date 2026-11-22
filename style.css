@@ -198,7 +198,7 @@ footer {
   padding: 10px 0;
 }
 
-/* TASK MANAGER */
+/* TASK AND NOTES PANELS */
 
 .task-panel,
 .notes-panel {
@@ -270,10 +270,42 @@ footer {
   min-height: 80px;
 }
 
+/* TASK INPUTS */
+
 .task-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.task-options input,
+.task-options select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 44px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.task-options input[type="date"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 44px;
+  padding: 8px 5px;
+  font-size: 12px;
+  overflow: hidden;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.task-options input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
 }
 
 .task-add-button,
@@ -289,7 +321,10 @@ footer {
 
 .task-options .task-add-button {
   grid-column: 1 / -1;
+  width: 100%;
 }
+
+/* TASK FILTERS */
 
 .task-filters {
   display: flex;
@@ -313,6 +348,8 @@ footer {
   color: #ff5555;
   border-color: #8e2929;
 }
+
+/* TASK LIST */
 
 .task-list,
 .note-list {
@@ -507,5 +544,15 @@ footer {
 
   .task-actions button {
     font-size: 8px;
+  }
+
+  .task-options {
+    gap: 6px;
+  }
+
+  .task-options input[type="date"] {
+    padding-left: 4px;
+    padding-right: 2px;
+    font-size: 11px;
   }
 }

@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "nova-cache-v10";
+const CACHE_NAME = "nova-cache-v11";
 
 const FILES_TO_CACHE = [
   "./",
@@ -8,6 +8,8 @@ const FILES_TO_CACHE = [
   "./app.js",
   "./manifest.json",
   "./icon.svg"
+  "./documents.html",
+  "./images.html"
 ];
 
 self.addEventListener("install", event => {

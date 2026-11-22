@@ -25,11 +25,10 @@
 
       <div class="header-buttons">
         <button id="loadModelButton" class="load-button">LOAD AI</button>
-        <button id="clearButton" class="clear-button" aria-label="Clear conversation">＋</button>
+        <button id="clearButton" class="clear-button">＋</button>
       </div>
     </header>
 
-    <!-- TASK MANAGER -->
     <section class="task-panel">
       <div class="task-heading">
         <div>
@@ -40,23 +39,18 @@
       </div>
 
       <form id="taskForm" class="task-form">
-        <input
-          id="taskInput"
-          type="text"
+        <input id="taskInput" type="text"
           placeholder="What do you need to do?"
-          maxlength="180"
-          required
-        >
+          maxlength="180" required>
 
         <div class="task-options">
-          <select id="taskPriority" aria-label="Task priority">
+          <select id="taskPriority">
             <option value="normal">Normal priority</option>
             <option value="high">High priority</option>
             <option value="low">Low priority</option>
           </select>
 
-          <input id="taskDueDate" type="date" aria-label="Due date">
-
+          <input id="taskDueDate" type="date">
           <button type="submit" class="task-add-button">ADD TASK</button>
         </div>
       </form>
@@ -71,7 +65,35 @@
       <p id="taskEmpty" class="task-empty">No tasks yet. Add your first task above.</p>
     </section>
 
-    <!-- AI PROGRESS -->
+    <section class="notes-panel">
+      <div class="notes-heading">
+        <div>
+          <h2>MY NOTES</h2>
+          <p id="notesSummary">0 saved notes</p>
+        </div>
+        <span class="notes-icon">✎</span>
+      </div>
+
+      <form id="noteForm" class="note-form">
+        <input id="noteTitle" type="text"
+          placeholder="Note title" maxlength="100" required>
+
+        <textarea id="noteContent"
+          placeholder="Write your note..."
+          rows="3" maxlength="5000" required></textarea>
+
+        <button type="submit" class="note-add-button">SAVE NOTE</button>
+      </form>
+
+      <input id="noteSearch" class="note-search"
+        type="search" placeholder="Search your notes...">
+
+      <div id="noteList" class="note-list"></div>
+      <p id="noteEmpty" class="note-empty">
+        No notes yet. Create your first note above.
+      </p>
+    </section>
+
     <div id="progressArea" class="progress-area">
       <div id="progressText">AI model not loaded</div>
       <div class="progress-track">
@@ -79,7 +101,6 @@
       </div>
     </div>
 
-    <!-- CHAT -->
     <section id="chatMessages" class="messages">
       <div class="message assistant">
         <div class="sender">NOVA</div>
@@ -90,13 +111,9 @@
     </section>
 
     <form id="chatForm" class="composer">
-      <input
-        id="messageInput"
-        type="text"
+      <input id="messageInput" type="text"
         placeholder="Message NOVA..."
-        autocomplete="off"
-        required
-      >
+        autocomplete="off" required>
       <button id="sendButton" type="submit">SEND</button>
     </form>
 

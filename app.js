@@ -59,6 +59,82 @@ let attachments = [];
 let attachmentContext = "";
 let importedContext = null;
 
+/* IMAGE CAPTIONING */
+
+let imageCaptioner = null;
+let imageCaptionerPromise = null;
+
+async function getImageCaptioner() {
+  if (imageCaptioner) return imageCaptioner;
+
+  if (!imageCaptionerPromise) {
+    imageCaptionerPromise = (async () => {
+      const transformers = await import(
+        "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+      );
+
+      return await transformers.pipeline(
+        "image-to-text",
+        "Xenova/vit-gpt2-image-captioning"
+      );
+    })();
+  }
+
+  try {
+    imageCaptioner = await imageCaptionerPromise;
+    return imageCaptioner;
+  } catch (error) {
+    imageCaptionerPromise = null;
+    throw error;
+  }
+}
+
+async function captionImage(item) {
+  try {
+    item.captionStatus = "Loading image AI...";
+    renderAttachments();
+
+    const captioner = await getImageCaptioner();
+
+    item.captionStatus = "Analyzing image...";
+    renderAttachments();
+
+    const image = new Image();
+    image.src = item.imageUrl;
+
+    await image.decode();
+
+    const result = await captioner(image);
+
+    let caption = "";
+
+    if (Array.isArray(result)) {
+      caption = result[0]?.generated_text || "";
+    } else if (result && typeof result === "object") {
+      caption = result.generated_text || "";
+    }
+
+    caption = String(caption).trim();
+
+    if (!caption) {
+      throw new Error("The image AI returned an empty description.");
+    }
+
+    item.text = caption;
+    item.captionStatus = "Image description ready";
+
+  } catch (error) {
+    console.error("Image captioning error:", error);
+
+    item.text = "";
+    item.captionStatus = `Caption failed: ${error.message}`;
+  }
+
+  renderAttachments();
+}
+
+/* STORAGE */
+
 function readStorage(key, fallback) {
   try {
     const value = localStorage.getItem(key);
@@ -1001,7 +1077,14 @@ fileInput.addEventListener("change", async () => {
   const selected = Array.from(fileInput.files || []);
 
   for (const file of selected) {
-    if (attachments.some(item => item.name === file.name && item.size === file.size)) {
+    if (attachments.some(item =>
+      item.name === file.name && item.size === file.size
+    )) {
+      continue;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      addMessage("assistant", `${file.name} is too large. Maximum file size is 12 MB.`);
       continue;
     }
 
@@ -1011,23 +1094,35 @@ fileInput.addEventListener("change", async () => {
       type: file.type,
       file,
       text: "",
-      imageUrl: ""
+      imageUrl: "",
+      captionStatus: "",
+      captionPromise: null
     };
+
+    attachments.push(item);
 
     if (file.type.startsWith("image/")) {
       item.imageUrl = URL.createObjectURL(file);
+      item.captionStatus = "Waiting for image AI...";
+      renderAttachments();
+
+      item.captionPromise = captionImage(item);
     } else {
+      item.captionStatus = "Reading file...";
+      renderAttachments();
+
       try {
         item.text = await extractFileText(file);
+        item.captionStatus = "File ready";
       } catch (error) {
         item.text = `[Could not read ${file.name}: ${error.message}]`;
+        item.captionStatus = "File reading failed";
       }
-    }
 
-    attachments.push(item);
+      renderAttachments();
+    }
   }
 
-  renderAttachments();
   fileInput.value = "";
 });
 
@@ -1046,22 +1141,33 @@ function renderAttachments() {
       card.appendChild(image);
     }
 
+    const info = document.createElement("div");
+    info.className = "attachment-info";
+
     const name = document.createElement("span");
     name.textContent = item.name;
+
+    const status = document.createElement("small");
+    status.textContent = item.captionStatus || "Ready";
+
+    info.append(name, status);
 
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "×";
     remove.setAttribute("aria-label", `Remove ${item.name}`);
     remove.addEventListener("click", () => {
-      if (attachments[index].imageUrl) {
-        URL.revokeObjectURL(attachments[index].imageUrl);
+      const selected = attachments[index];
+
+      if (selected?.imageUrl) {
+        URL.revokeObjectURL(selected.imageUrl);
       }
+
       attachments.splice(index, 1);
       renderAttachments();
     });
 
-    card.append(name, remove);
+    card.append(info, remove);
     attachmentPreview.appendChild(card);
   });
 }
@@ -1193,22 +1299,40 @@ window.addEventListener("storage", event => {
 window.addEventListener("focus", refreshImportedContext);
 window.addEventListener("pageshow", refreshImportedContext);
 
-function buildAttachmentContext() {
-  const readable = attachments
-    .filter(item => item.text)
-    .map(item => `FILE: ${item.name}\n${item.text}`)
-    .join("\n\n");
+async function buildAttachmentContext() {
+  const pendingCaptions = attachments
+    .map(item => item.captionPromise)
+    .filter(Boolean);
 
-  const images = attachments.filter(item => item.imageUrl);
-  let result = readable;
-
-  if (images.length) {
-    result += (result ? "\n\n" : "") +
-      `IMAGE ATTACHMENTS: ${images.map(item => item.name).join(", ")}.\n` +
-      "The current text model cannot inspect image contents. Explain this limitation honestly.";
+  if (pendingCaptions.length) {
+    setStatus("PREPARING ATTACHMENTS");
+    setProgress("Waiting for image descriptions...", 100);
+    await Promise.all(pendingCaptions);
   }
 
-  return result.slice(0, MAX_ATTACHMENT_TEXT);
+  const sections = attachments.map(item => {
+    if (item.imageUrl) {
+      if (item.text) {
+        return `IMAGE FILE: ${item.name}
+AI-GENERATED IMAGE DESCRIPTION:
+${item.text}
+
+Use this description as visual information when answering the user's question.`;
+      }
+
+      return `IMAGE FILE: ${item.name}
+IMAGE DESCRIPTION: Unavailable. The image captioning model failed to analyze this image. Be honest about this limitation.`;
+    }
+
+    if (item.text) {
+      return `FILE: ${item.name}
+${item.text}`;
+    }
+
+    return "";
+  }).filter(Boolean);
+
+  return sections.join("\n\n").slice(0, MAX_ATTACHMENT_TEXT);
 }
 
 function buildImportedMessage(context) {
@@ -1253,8 +1377,10 @@ You must be honest about your abilities.
 The app has a separate action system for tasks, notes and memories.
 When the user asks you to change app data, follow the request through the available app actions when possible. Never claim an action happened unless the app confirms it.
 If a file's text is provided, analyze that text.
-If imported image-caption text is provided, use it as the available description of the image. Do not claim to see visual details beyond the description.
-The current text model cannot directly inspect image pixels.
+If an image description is provided, use it to answer questions about the image.
+Image descriptions come from an image captioning model and might be incomplete or inaccurate. Do not claim to see details beyond the description.
+If an image description is unavailable, explain that the image could not be analyzed.
+You receive image descriptions and the user's question together in the same message.
 
 SAVED MEMORIES:
 ${memoryContext || "No saved memories."}
@@ -1368,41 +1494,44 @@ async function sendMessage(text) {
   if (handleCommand(clean)) return;
   if (performNaturalAction(clean)) return;
 
-  attachmentContext = buildAttachmentContext();
-
-  if (!engine) {
-    addMessage("assistant",
-      "My AI model isn't loaded yet. Tap LOAD AI when you're ready.");
-    return;
-  }
-
-  const importedText = buildImportedMessage(importedForThisMessage);
-  const fileText = attachmentContext
-    ? `\n\nATTACHED FILE CONTENT\n${attachmentContext}`
-    : "";
-
-  const completeUserMessage =
-    shortenText(clean, MAX_MESSAGE_LENGTH) +
-    importedText +
-    fileText;
-
-  conversation.push({
-    role: "user",
-    content: completeUserMessage
-  });
-
-  prepareConversation();
-  saveState();
-
   generating = true;
   sendButton.disabled = true;
   messageInput.disabled = true;
   attachButton.disabled = true;
 
-  const replyBubble = addMessage("assistant", "Thinking...");
+  const replyBubble = addMessage("assistant", "Preparing your attachments...");
   let successful = false;
+  let completeUserMessage = "";
 
   try {
+    attachmentContext = await buildAttachmentContext();
+
+    if (!engine) {
+      replyBubble.textContent =
+        "My AI model isn't loaded yet. Tap LOAD AI when you're ready.";
+      return;
+    }
+
+    const importedText = buildImportedMessage(importedForThisMessage);
+    const fileText = attachmentContext
+      ? `\n\nATTACHED FILE CONTENT\n${attachmentContext}`
+      : "";
+
+    completeUserMessage =
+      shortenText(clean, MAX_MESSAGE_LENGTH) +
+      importedText +
+      fileText;
+
+    conversation.push({
+      role: "user",
+      content: completeUserMessage
+    });
+
+    prepareConversation();
+    saveState();
+
+    replyBubble.textContent = "Thinking...";
+
     setStatus("GENERATING RESPONSE");
     setProgress("NOVA is thinking...", 100);
 
@@ -1438,10 +1567,12 @@ async function sendMessage(text) {
     const errorText = `Generation error: ${error.message}`;
     replyBubble.textContent = errorText;
 
-    conversation = conversation.filter(message =>
-      !(message.role === "user" &&
-        message.content === completeUserMessage)
-    );
+    if (completeUserMessage) {
+      conversation = conversation.filter(message =>
+        !(message.role === "user" &&
+          message.content === completeUserMessage)
+      );
+    }
 
     const last = displayHistory[displayHistory.length - 1];
     if (last) last.text = errorText;
@@ -1463,6 +1594,15 @@ async function sendMessage(text) {
 
     if (successful && importedForThisMessage) {
       clearImportedContext();
+    }
+
+    if (successful) {
+      attachments.forEach(item => {
+        if (item.imageUrl) URL.revokeObjectURL(item.imageUrl);
+      });
+
+      attachments = [];
+      renderAttachments();
     }
   }
 }

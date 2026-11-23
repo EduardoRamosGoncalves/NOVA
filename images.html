@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080808">
   <title>NOVA Image Reader</title>
 
@@ -14,340 +14,323 @@
 
     body {
       margin: 0;
-      padding: 20px;
+      padding: 24px 16px;
       min-height: 100vh;
       background: #080808;
       color: #f2f2f2;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .app {
-      width: min(100%, 650px);
+    main {
+      width: min(100%, 620px);
       margin: 0 auto;
     }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-    }
-
     h1 {
-      margin: 0;
-      color: #ff3030;
-      font-size: 28px;
-      letter-spacing: 3px;
+      margin: 8px 0;
+      font-size: 30px;
     }
 
     .subtitle {
-      color: #888;
-      font-size: 13px;
-      margin-top: 5px;
+      color: #999;
+      margin-bottom: 26px;
     }
 
     .panel {
-      background: #111;
+      background: #141414;
       border: 1px solid #292929;
-      border-radius: 16px;
+      border-radius: 18px;
       padding: 18px;
       margin-bottom: 16px;
     }
 
-    .section-title {
-      font-size: 13px;
-      color: #ff4545;
-      font-weight: 700;
-      letter-spacing: 1px;
-      margin-bottom: 14px;
-    }
-
-    input[type="file"] {
+    button, input, textarea {
       width: 100%;
-      padding: 13px;
-      background: #191919;
-      border: 1px solid #333;
-      border-radius: 10px;
-      color: #ddd;
-    }
-
-    img {
-      display: none;
-      width: 100%;
-      max-height: 380px;
-      object-fit: contain;
-      margin-top: 16px;
-      background: #050505;
-      border-radius: 10px;
+      font: inherit;
     }
 
     button {
-      width: 100%;
+      border: 0;
+      border-radius: 12px;
       padding: 14px;
       margin-top: 12px;
-      border: 0;
-      border-radius: 10px;
-      background: #e52b2b;
+      background: #d92727;
       color: white;
-      font-size: 14px;
       font-weight: 700;
       cursor: pointer;
     }
 
     button:disabled {
-      opacity: 0.4;
+      opacity: .45;
       cursor: not-allowed;
     }
 
-    button.secondary {
-      background: #202020;
-      border: 1px solid #383838;
-    }
-
-    button.send {
-      background: #176b42;
+    input[type="file"] {
+      margin-top: 12px;
+      color: #aaa;
     }
 
     textarea {
-      width: 100%;
       min-height: 150px;
       resize: vertical;
-      padding: 14px;
-      background: #090909;
+      padding: 13px;
+      border-radius: 12px;
       border: 1px solid #333;
-      border-radius: 10px;
-      color: #eee;
-      font: inherit;
+      background: #090909;
+      color: white;
       line-height: 1.5;
     }
 
+    img {
+      display: none;
+      width: 100%;
+      max-height: 360px;
+      object-fit: contain;
+      margin-top: 16px;
+      border-radius: 12px;
+      background: #080808;
+    }
+
     .status {
-      margin-top: 14px;
       color: #aaa;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.5;
+      margin-top: 12px;
       overflow-wrap: anywhere;
     }
 
     .green {
-      color: #55d68a;
+      color: #54d68b;
     }
 
-    .hint {
-      color: #777;
+    .red {
+      color: #ff6464;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: 650;
+    }
+
+    .secondary {
+      background: #292929;
+    }
+
+    .small {
+      color: #888;
       font-size: 12px;
       line-height: 1.5;
-      margin-top: 12px;
-    }
-
-    a {
-      color: #ff5555;
-      text-decoration: none;
-      font-size: 13px;
     }
   </style>
 </head>
 
 <body>
-  <main class="app">
-    <header>
-      <div>
-        <h1>NOVA</h1>
-        <div class="subtitle">IMAGE READER</div>
-      </div>
-      <a href="./index.html">BACK TO CHAT</a>
-    </header>
+<main>
+  <h1>NOVA Image Reader</h1>
+  <div class="subtitle">Analyze an image and send its description to NOVA.</div>
 
-    <section class="panel">
-      <div class="section-title">1. SELECT IMAGE</div>
+  <section class="panel">
+    <label class="label" for="imageInput">1. Choose an image</label>
+    <input id="imageInput" type="file" accept="image/*">
+    <img id="preview" alt="Selected image preview">
 
-      <input
-        id="imageInput"
-        type="file"
-        accept="image/*"
-      >
+    <button id="loadButton">LOAD IMAGE AI</button>
+    <button id="analyzeButton" disabled>ANALYZE IMAGE</button>
 
-      <img id="preview" alt="Selected image preview">
+    <div id="modelStatus" class="status">Image AI is not loaded.</div>
+  </section>
 
-      <div class="hint">
-        Select a photo, screenshot, or another image from your device.
-      </div>
-    </section>
+  <section class="panel">
+    <label class="label" for="caption">2. Image description</label>
+    <textarea id="caption" placeholder="The image description will appear here. You can edit it before sending."></textarea>
 
-    <section class="panel">
-      <div class="section-title">2. ANALYZE IMAGE</div>
+    <button id="sendButton" disabled>SEND TO NOVA</button>
+    <div id="sendStatus" class="status">Nothing sent yet.</div>
+  </section>
 
-      <button id="analyzeButton" disabled>
-        ANALYZE IMAGE
-      </button>
+  <p class="small">
+    The image caption is generated locally. NOVA receives the description as text, not the original image pixels. The first model download requires internet access.
+  </p>
+</main>
 
-      <div id="status" class="status">
-        Select an image to begin.
-      </div>
-    </section>
+<script type="module">
+  import { pipeline } from
+    "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
 
-    <section class="panel">
-      <div class="section-title">3. IMAGE DESCRIPTION</div>
+  const $ = id => document.getElementById(id);
 
-      <textarea
-        id="caption"
-        placeholder="The image description will appear here..."
-      ></textarea>
+  const imageInput = $("imageInput");
+  const preview = $("preview");
+  const loadButton = $("loadButton");
+  const analyzeButton = $("analyzeButton");
+  const sendButton = $("sendButton");
+  const caption = $("caption");
+  const modelStatus = $("modelStatus");
+  const sendStatus = $("sendStatus");
 
-      <button id="copyButton" class="secondary" disabled>
-        COPY DESCRIPTION
-      </button>
+  const IMPORT_KEY = "nova_imported_context";
 
-      <button id="sendButton" class="send" disabled>
-        SEND TO NOVA
-      </button>
+  let selectedFile = null;
+  let imageURL = null;
+  let captioner = null;
 
-      <div class="hint">
-        NOVA receives this generated description as context. The description
-        might miss small details or text in the image.
-      </div>
-    </section>
-  </main>
+  function setStatus(element, message, type = "") {
+    element.textContent = message;
+    element.className = "status " + type;
+  }
 
-  <script type="module">
-    import { pipeline } from
-      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
+  imageInput.addEventListener("change", () => {
+    selectedFile = imageInput.files?.[0] || null;
+    caption.value = "";
+    sendButton.disabled = true;
+    setStatus(sendStatus, "Nothing sent yet.");
 
-    const $ = id => document.getElementById(id);
-
-    const imageInput = $("imageInput");
-    const preview = $("preview");
-    const analyzeButton = $("analyzeButton");
-    const status = $("status");
-    const caption = $("caption");
-    const copyButton = $("copyButton");
-    const sendButton = $("sendButton");
-
-    let selectedFile = null;
-    let captioner = null;
-    let imageUrl = null;
-
-    function setStatus(message, success = false) {
-      status.textContent = message;
-      status.className = success ? "status green" : "status";
+    if (imageURL) {
+      URL.revokeObjectURL(imageURL);
+      imageURL = null;
     }
 
-    imageInput.addEventListener("change", () => {
-      const file = imageInput.files?.[0];
+    if (!selectedFile) {
+      preview.style.display = "none";
+      return;
+    }
 
-      if (!file) return;
+    if (!selectedFile.type.startsWith("image/")) {
+      selectedFile = null;
+      setStatus(modelStatus, "Please choose a valid image.", "red");
+      return;
+    }
 
-      if (!file.type.startsWith("image/")) {
-        setStatus("Please select a valid image.");
-        return;
-      }
+    imageURL = URL.createObjectURL(selectedFile);
+    preview.src = imageURL;
+    preview.style.display = "block";
 
-      selectedFile = file;
+    setStatus(
+      modelStatus,
+      "Image selected: " + selectedFile.name
+    );
+  });
 
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
+  loadButton.addEventListener("click", async () => {
+    if (captioner) {
+      setStatus(modelStatus, "Image AI is ready.", "green");
+      return;
+    }
 
-      imageUrl = URL.createObjectURL(file);
-      preview.src = imageUrl;
-      preview.style.display = "block";
+    loadButton.disabled = true;
+    setStatus(modelStatus, "Loading image AI. First load requires internet.");
 
-      caption.value = "";
-      analyzeButton.disabled = false;
-      copyButton.disabled = true;
-      sendButton.disabled = true;
-
-      setStatus("Image selected: " + file.name);
-    });
-
-    async function loadCaptioner() {
-      if (captioner) return captioner;
-
-      setStatus("Loading image AI. The first download requires internet.");
-
+    try {
       captioner = await pipeline(
         "image-to-text",
         "Xenova/vit-gpt2-image-captioning"
       );
 
-      return captioner;
+      analyzeButton.disabled = false;
+      setStatus(modelStatus, "Image AI is ready.", "green");
+    } catch (error) {
+      console.error(error);
+      captioner = null;
+      setStatus(
+        modelStatus,
+        "Could not load image AI: " + error.message,
+        "red"
+      );
+    } finally {
+      loadButton.disabled = false;
+    }
+  });
+
+  analyzeButton.addEventListener("click", async () => {
+    if (!selectedFile || !imageURL || !captioner) {
+      setStatus(modelStatus, "Choose an image and load image AI first.", "red");
+      return;
     }
 
-    analyzeButton.addEventListener("click", async () => {
-      if (!selectedFile) return;
+    analyzeButton.disabled = true;
+    sendButton.disabled = true;
+    setStatus(modelStatus, "Analyzing image...");
 
-      analyzeButton.disabled = true;
-      copyButton.disabled = true;
+    try {
+      const result = await captioner(imageURL);
+      const description = Array.isArray(result)
+        ? result[0]?.generated_text
+        : result?.generated_text;
+
+      if (!description) {
+        throw new Error("The image model returned no description.");
+      }
+
+      caption.value = description.trim();
+      sendButton.disabled = !caption.value.trim();
+
+      setStatus(modelStatus, "Image analysis complete.", "green");
+    } catch (error) {
+      console.error(error);
+      setStatus(
+        modelStatus,
+        "Image analysis failed: " + error.message,
+        "red"
+      );
+    } finally {
+      analyzeButton.disabled = false;
+    }
+  });
+
+  sendButton.addEventListener("click", () => {
+    const text = caption.value.trim();
+
+    if (!text) {
+      setStatus(sendStatus, "There is no description to send.", "red");
+      return;
+    }
+
+    const payload = {
+      name: selectedFile?.name || "Image",
+      filename: selectedFile?.name || "Image",
+      type: "image caption",
+      text: text,
+      caption: text,
+      sentAt: new Date().toISOString()
+    };
+
+    try {
+      localStorage.setItem(IMPORT_KEY, JSON.stringify(payload));
+
+      const saved = localStorage.getItem(IMPORT_KEY);
+
+      if (!saved) {
+        throw new Error("The saved data could not be read back.");
+      }
+
+      const verification = JSON.parse(saved);
+
+      if (verification.text !== text) {
+        throw new Error("The saved description does not match.");
+      }
+
+      setStatus(
+        sendStatus,
+        "Description saved successfully. Opening NOVA...",
+        "green"
+      );
+
       sendButton.disabled = true;
 
-      try {
-        const model = await loadCaptioner();
+      setTimeout(() => {
+        window.location.href = "./index.html?import=1";
+      }, 500);
 
-        setStatus("Analyzing image...");
-
-        const result = await model(preview.src);
-
-        let generatedText = "";
-
-        if (Array.isArray(result) && result.length > 0) {
-          generatedText = result[0].generated_text || "";
-        } else if (result && result.generated_text) {
-          generatedText = result.generated_text;
-        }
-
-        if (!generatedText.trim()) {
-          throw new Error("The model did not return a description.");
-        }
-
-        caption.value = generatedText.trim();
-
-        copyButton.disabled = false;
-        sendButton.disabled = false;
-
-        setStatus("Image analyzed successfully.", true);
-      } catch (error) {
-        console.error(error);
-        setStatus("Analysis failed: " + (error.message || error));
-      } finally {
-        analyzeButton.disabled = !selectedFile;
-      }
-    });
-
-    copyButton.addEventListener("click", async () => {
-      if (!caption.value.trim()) return;
-
-      try {
-        await navigator.clipboard.writeText(caption.value);
-        setStatus("Description copied.", true);
-      } catch {
-        caption.select();
-        setStatus("Select and copy the description manually.");
-      }
-    });
-
-    sendButton.addEventListener("click", () => {
-      const text = caption.value.trim();
-
-      if (!text || !selectedFile) return;
-
-      const importedContext = {
-        name: selectedFile.name,
-        type: "image caption",
-        text: text
-      };
-
-      try {
-        localStorage.setItem(
-          "nova_imported_context",
-          JSON.stringify(importedContext)
-        );
-
-        setStatus("Sending image description to NOVA...", true);
-        window.location.href = "./index.html";
-      } catch (error) {
-        setStatus("Could not send to NOVA: " + error.message);
-      }
-    });
-  </script>
+    } catch (error) {
+      console.error(error);
+      setStatus(
+        sendStatus,
+        "Transfer failed: " + error.message,
+        "red"
+      );
+    }
+  });
+</script>
 </body>
 </html>

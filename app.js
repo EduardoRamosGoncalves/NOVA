@@ -7,6 +7,7 @@ const MAX_TOKENS = 160;
 const MAX_CONVERSATION_MESSAGES = 4;
 const MAX_MESSAGE_LENGTH = 1200;
 const MAX_ATTACHMENT_TEXT = 7000;
+const MAX_CONVERSATION_CONTENT = MAX_MESSAGE_LENGTH + MAX_ATTACHMENT_TEXT + 500;
 const IMPORT_KEY = "nova_imported_context";
 
 const KEYS = {
@@ -1125,13 +1126,22 @@ function readImportedContext() {
     const raw = localStorage.getItem(IMPORT_KEY);
     if (!raw) return null;
 
-    const data = JSON.parse(raw);
+    let data;
+
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = raw;
+    }
 
     if (typeof data === "string") {
+      const text = data.trim();
+      if (!text) return null;
+
       return {
         name: "Imported content",
         type: "text",
-        text: data
+        text: text.slice(0, MAX_ATTACHMENT_TEXT)
       };
     }
 
@@ -1161,6 +1171,7 @@ function readImportedContext() {
 function refreshImportedContext() {
   const latest = readImportedContext();
   if (latest) importedContext = latest;
+  return importedContext;
 }
 
 function clearImportedContext() {
@@ -1197,13 +1208,21 @@ function buildAttachmentContext() {
       "The current text model cannot inspect image contents. Explain this limitation honestly.";
   }
 
-  if (importedContext) {
-    result += (result ? "\n\n" : "") +
-      `IMPORTED FROM NOVA ${importedContext.type.toUpperCase()}: ${importedContext.name}\n` +
-      importedContext.text;
-  }
-
   return result.slice(0, MAX_ATTACHMENT_TEXT);
+}
+
+function buildImportedMessage(context) {
+  if (!context || !context.text) return "";
+
+  return `
+
+IMPORTED CONTENT FROM NOVA
+Type: ${context.type}
+Filename: ${context.name}
+
+${context.text}
+
+Use the imported content above to answer the user's question.`;
 }
 
 /* SYSTEM PROMPT */
@@ -1246,7 +1265,7 @@ ${noteContext || "No notes."}
 TASKS:
 ${taskContext || "No tasks."}
 
-ATTACHED AND IMPORTED CONTENT:
+ATTACHED CONTENT:
 ${attachmentContext || "No file content attached."}`;
 }
 
@@ -1323,7 +1342,12 @@ function prepareConversation() {
     .slice(-MAX_CONVERSATION_MESSAGES)
     .map(message => ({
       role: message.role,
-      content: shortenText(message.content, MAX_MESSAGE_LENGTH)
+      content: shortenText(
+        message.content,
+        message.role === "user"
+          ? MAX_CONVERSATION_CONTENT
+          : MAX_MESSAGE_LENGTH
+      )
     }));
 
   return conversation;
@@ -1333,12 +1357,17 @@ async function sendMessage(text) {
   const clean = text.trim();
   if (!clean || generating) return;
 
+  refreshImportedContext();
+
+  const importedForThisMessage = importedContext
+    ? { ...importedContext }
+    : null;
+
   addMessage("user", clean);
 
   if (handleCommand(clean)) return;
   if (performNaturalAction(clean)) return;
 
-  refreshImportedContext();
   attachmentContext = buildAttachmentContext();
 
   if (!engine) {
@@ -1347,9 +1376,19 @@ async function sendMessage(text) {
     return;
   }
 
+  const importedText = buildImportedMessage(importedForThisMessage);
+  const fileText = attachmentContext
+    ? `\n\nATTACHED FILE CONTENT\n${attachmentContext}`
+    : "";
+
+  const completeUserMessage =
+    shortenText(clean, MAX_MESSAGE_LENGTH) +
+    importedText +
+    fileText;
+
   conversation.push({
     role: "user",
-    content: shortenText(clean, MAX_MESSAGE_LENGTH)
+    content: completeUserMessage
   });
 
   prepareConversation();
@@ -1361,6 +1400,7 @@ async function sendMessage(text) {
   attachButton.disabled = true;
 
   const replyBubble = addMessage("assistant", "Thinking...");
+  let successful = false;
 
   try {
     setStatus("GENERATING RESPONSE");
@@ -1392,13 +1432,15 @@ async function sendMessage(text) {
     setProgress(`${MODEL_NAME} is ready.`, 100);
     saveState();
 
+    successful = true;
+
   } catch (error) {
     const errorText = `Generation error: ${error.message}`;
     replyBubble.textContent = errorText;
 
     conversation = conversation.filter(message =>
       !(message.role === "user" &&
-        message.content === shortenText(clean, MAX_MESSAGE_LENGTH))
+        message.content === completeUserMessage)
     );
 
     const last = displayHistory[displayHistory.length - 1];
@@ -1418,7 +1460,10 @@ async function sendMessage(text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
     attachmentContext = "";
-    clearImportedContext();
+
+    if (successful && importedForThisMessage) {
+      clearImportedContext();
+    }
   }
 }
 
